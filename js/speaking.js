@@ -369,7 +369,6 @@ function showSpeakingResult(recognized, expected) {
 
     if (!container) return;
 
-    const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
     const total = SpeakingPractice.currentItems.length;
     const current = SpeakingPractice.currentIndex + 1;
     const hasNext = SpeakingPractice.currentIndex < SpeakingPractice.currentItems.length - 1;
