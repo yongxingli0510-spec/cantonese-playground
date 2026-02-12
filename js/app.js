@@ -294,6 +294,143 @@ window.addEventListener('load', () => {
     }
 });
 
+// ==================== HANZI WRITER FUNCTIONS ====================
+
+// Store HanziWriter instances to manage them
+const hanziWriters = new Map();
+
+/**
+ * Play stroke animation demo for a character
+ * @param {HTMLElement} button - The button that was clicked
+ * @param {string} character - The Chinese character to animate
+ */
+function playStrokeAnimation(button, character) {
+    const card = button.closest('.write-card');
+    if (!card) return;
+
+    const container = card.querySelector('.hanzi-writer-container');
+    if (!container) return;
+
+    // Clear existing content
+    container.innerHTML = '';
+
+    // Create unique ID for this writer
+    const writerId = 'writer-' + character + '-' + Date.now();
+    const writerDiv = document.createElement('div');
+    writerDiv.id = writerId;
+    container.appendChild(writerDiv);
+
+    try {
+        // Create HanziWriter instance
+        const writer = HanziWriter.create(writerId, character, {
+            width: 150,
+            height: 150,
+            padding: 5,
+            showOutline: true,
+            strokeAnimationSpeed: 1,
+            delayBetweenStrokes: 300,
+            strokeColor: '#333',
+            outlineColor: '#DDD',
+            drawingColor: '#4ECDC4'
+        });
+
+        // Store the writer instance
+        hanziWriters.set(writerId, writer);
+
+        // Animate the character
+        writer.animateCharacter();
+
+    } catch (error) {
+        console.error('Error creating HanziWriter:', error);
+        container.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Unable to load character</div>';
+    }
+}
+
+/**
+ * Clear the demo container
+ * @param {HTMLElement} button - The button that was clicked
+ */
+function clearDemo(button) {
+    const card = button.closest('.write-card');
+    if (!card) return;
+
+    const demoContainer = card.querySelector('.hanzi-writer-container');
+    const quizContainer = card.querySelector('.hanzi-quiz-container');
+
+    if (demoContainer) {
+        demoContainer.innerHTML = '';
+    }
+    if (quizContainer) {
+        quizContainer.innerHTML = '';
+    }
+}
+
+/**
+ * Start practice/quiz mode for a character
+ * @param {HTMLElement} button - The button that was clicked
+ * @param {string} character - The Chinese character to practice
+ */
+function startQuiz(button, character) {
+    const card = button.closest('.write-card');
+    if (!card) return;
+
+    const container = card.querySelector('.hanzi-quiz-container');
+    if (!container) return;
+
+    // Clear existing content
+    container.innerHTML = '';
+
+    // Create unique ID for this quiz
+    const quizId = 'quiz-' + character + '-' + Date.now();
+    const quizDiv = document.createElement('div');
+    quizDiv.id = quizId;
+    container.appendChild(quizDiv);
+
+    try {
+        // Create HanziWriter instance in quiz mode
+        const writer = HanziWriter.create(quizId, character, {
+            width: 150,
+            height: 150,
+            padding: 5,
+            showOutline: true,
+            showCharacter: false,
+            strokeColor: '#333',
+            outlineColor: '#DDD',
+            drawingColor: '#4ECDC4',
+            highlightColor: '#4ECDC4',
+            highlightOnComplete: true,
+            showHintAfterMisses: 3
+        });
+
+        // Store the writer instance
+        hanziWriters.set(quizId, writer);
+
+        // Start quiz mode
+        writer.quiz({
+            onComplete: function(summaryData) {
+                console.log('Quiz complete! Mistakes:', summaryData.totalMistakes);
+                if (summaryData.totalMistakes === 0) {
+                    showCelebration('🎉');
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating HanziWriter quiz:', error);
+        container.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Unable to load practice mode</div>';
+    }
+}
+
+/**
+ * Play audio for a character
+ * @param {string} character - The Chinese character
+ */
+function playCharAudio(character) {
+    if (typeof playSound === 'function') {
+        playSound(character, '');
+    }
+}
+
 // ==================== EXPORTS ====================
 
 // Export functions for global use
@@ -303,3 +440,7 @@ window.openAboutModal = openAboutModal;
 window.closeAboutModal = closeAboutModal;
 window.showLoadingIndicator = showLoadingIndicator;
 window.hideLoadingIndicator = hideLoadingIndicator;
+window.playStrokeAnimation = playStrokeAnimation;
+window.clearDemo = clearDemo;
+window.startQuiz = startQuiz;
+window.playCharAudio = playCharAudio;

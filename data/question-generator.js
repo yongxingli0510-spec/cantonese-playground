@@ -229,10 +229,13 @@ const QuestionGenerator = (function() {
                     { template: '___乘二等於幾多？', excludeWords: ['乘', '二', '等'] }
                 ],
                 animals: [
-                    { template: '我有一隻___。', excludeWords: ['一', '隻', '有'] },
-                    { template: '呢隻係___。', excludeWords: ['呢', '隻', '係'] },
+                    // "I have a ___" - only pets/small animals a kid could have
+                    { template: '我有一隻___。', excludeWords: ['一', '隻', '有', '蛇', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星', '蟹', '蝦', '大象', '獅子', '老虎', '熊', '猴子', '企鵝', '長頸鹿', '斑馬', '豬', '牛', '羊', '馬'] },
+                    // "This is a ___" - 隻 classifier, exclude animals that use 條
+                    { template: '呢隻係___。', excludeWords: ['呢', '隻', '係', '蛇', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星'] },
                     { template: '我鍾意___。', excludeWords: ['鍾', '意'] },
-                    { template: '動物園有___。', excludeWords: ['有'] }
+                    // "The zoo has ___" - only zoo animals, exclude pets/farm/marine/insects
+                    { template: '動物園有___。', excludeWords: ['有', '貓', '狗', '雞', '鴨', '豬', '牛', '羊', '馬', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星', '蟹', '蝦', '蝸牛', '蝴蝶', '蜜蜂', '螞蟻', '蜘蛛'] }
                 ],
                 foods: [
                     { template: '我想食___。', excludeWords: ['想', '食'] },
@@ -241,8 +244,9 @@ const QuestionGenerator = (function() {
                     { template: '我食緊___。', excludeWords: ['食', '緊'] }
                 ],
                 colors: [
-                    { template: '蘋果係___。', excludeWords: ['係'] },
-                    { template: '天空係___。', excludeWords: ['係'] },
+                    { template: '蘋果係___。', excludeWords: ['係', '藍色', '紫色', '粉紅色', '黑色', '白色', '灰色', '啡色', '金色', '銀色'] },
+                    { template: '天空係___。', excludeWords: ['係', '紅色', '黃色', '綠色', '橙色', '紫色', '粉紅色', '黑色', '白色', '灰色', '啡色', '金色', '銀色'] },
+                    { template: '呢朵花係___。', excludeWords: ['呢', '朵', '花', '係', '灰色', '金色', '銀色'] },
                     { template: '我鍾意___。', excludeWords: ['鍾', '意'] },
                     { template: '呢個係___。', excludeWords: ['呢', '個', '係'] }
                 ],

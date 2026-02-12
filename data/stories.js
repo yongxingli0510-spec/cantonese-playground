@@ -103,6 +103,30 @@ const storiesData = {
         icon: '🐸',
         moral: '要開闊眼界 (Broaden your horizons)',
         moralEnglish: 'Don\'t be narrow-minded'
+    },
+    story13: {
+        id: 'story13',
+        title: '自相矛盾',
+        titleEnglish: 'The Spear and the Shield',
+        icon: '🛡️',
+        moral: '講嘢要前後一致 (Be consistent in what you say)',
+        moralEnglish: 'Don\'t contradict yourself'
+    },
+    story14: {
+        id: 'story14',
+        title: '掩耳盜鈴',
+        titleEnglish: 'Covering Ears While Stealing a Bell',
+        icon: '🔔',
+        moral: '唔好自欺欺人 (Don\'t deceive yourself)',
+        moralEnglish: 'You cannot fool yourself or others'
+    },
+    story15: {
+        id: 'story15',
+        title: '亡羊補牢',
+        titleEnglish: 'Mending the Fold After Losing Sheep',
+        icon: '🐑',
+        moral: '知錯能改 (It\'s never too late to fix mistakes)',
+        moralEnglish: 'Better late than never to correct mistakes'
     }
 };
 
@@ -468,6 +492,102 @@ const storyQuizData = {
             options: ['要開闊眼界', '井好舒服', '唔好出去', '天好細'],
             correctAnswer: 0
         }
+    ],
+    story13: [
+        {
+            question: '商人賣咩嘢？',
+            questionEnglish: 'What did the merchant sell?',
+            options: ['矛同盾', '刀同劍', '弓同箭', '衫同褲'],
+            correctAnswer: 0
+        },
+        {
+            question: '商人話佢把矛點樣？',
+            questionEnglish: 'What did the merchant say about his spear?',
+            options: ['可以刺穿所有盾', '好平', '好輕', '好靚'],
+            correctAnswer: 0
+        },
+        {
+            question: '商人話佢個盾點樣？',
+            questionEnglish: 'What did the merchant say about his shield?',
+            options: ['冇嘢可以刺穿', '好平', '好輕', '好靚'],
+            correctAnswer: 0
+        },
+        {
+            question: '有人問咗咩問題？',
+            questionEnglish: 'What question did someone ask?',
+            options: ['用你把矛刺你個盾會點', '幾錢', '邊度買', '點解咁平'],
+            correctAnswer: 0
+        },
+        {
+            question: '呢個故事話俾我哋知咩道理？',
+            questionEnglish: 'What is the moral of the story?',
+            options: ['講嘢要前後一致', '要識賣嘢', '矛好利', '盾好硬'],
+            correctAnswer: 0
+        }
+    ],
+    story14: [
+        {
+            question: '個賊想偷咩？',
+            questionEnglish: 'What did the thief want to steal?',
+            options: ['一個鈴', '錢', '食物', '衫'],
+            correctAnswer: 0
+        },
+        {
+            question: '個鈴有咩問題？',
+            questionEnglish: 'What was the problem with the bell?',
+            options: ['一掂就會響', '太重', '太大', '太高'],
+            correctAnswer: 0
+        },
+        {
+            question: '個賊諗到咩辦法？',
+            questionEnglish: 'What solution did the thief think of?',
+            options: ['掩住自己耳仔', '用布包住鈴', '夜晚偷', '搵人幫手'],
+            correctAnswer: 0
+        },
+        {
+            question: '最後發生咩事？',
+            questionEnglish: 'What happened in the end?',
+            options: ['俾人捉咗', '成功偷咗', '走咗', '放棄咗'],
+            correctAnswer: 0
+        },
+        {
+            question: '呢個故事話俾我哋知咩道理？',
+            questionEnglish: 'What is the moral of the story?',
+            options: ['唔好自欺欺人', '鈴好響', '要小心', '唔好偷嘢'],
+            correctAnswer: 0
+        }
+    ],
+    story15: [
+        {
+            question: '農夫養咩動物？',
+            questionEnglish: 'What animals did the farmer raise?',
+            options: ['羊', '雞', '牛', '豬'],
+            correctAnswer: 0
+        },
+        {
+            question: '羊圈有咩問題？',
+            questionEnglish: 'What was wrong with the sheep pen?',
+            options: ['有個窿', '太細', '太舊', '冇門'],
+            correctAnswer: 0
+        },
+        {
+            question: '第一次有咩事發生？',
+            questionEnglish: 'What happened the first time?',
+            options: ['狼叼走咗一隻羊', '羊走咗', '落雨', '冇事'],
+            correctAnswer: 0
+        },
+        {
+            question: '農夫一開始點做？',
+            questionEnglish: 'What did the farmer do at first?',
+            options: ['冇理', '即刻修理', '搵人幫手', '賣咗啲羊'],
+            correctAnswer: 0
+        },
+        {
+            question: '呢個故事話俾我哋知咩道理？',
+            questionEnglish: 'What is the moral of the story?',
+            options: ['知錯能改永遠唔遲', '要養羊', '狼好壞', '羊圈要大'],
+            correctAnswer: 0
+        }
     ]
 };
 
@@ -485,7 +605,10 @@ const storyList = [
     { id: 'story9', title: '孔融讓梨', icon: '🍐' },
     { id: 'story10', title: '司馬光砸缸', icon: '🏺' },
     { id: 'story11', title: '守株待兔', icon: '🐰' },
-    { id: 'story12', title: '井底之蛙', icon: '🐸' }
+    { id: 'story12', title: '井底之蛙', icon: '🐸' },
+    { id: 'story13', title: '自相矛盾', icon: '🛡️' },
+    { id: 'story14', title: '掩耳盜鈴', icon: '🔔' },
+    { id: 'story15', title: '亡羊補牢', icon: '🐑' }
 ];
 
 // ==================== EXPORTS ====================

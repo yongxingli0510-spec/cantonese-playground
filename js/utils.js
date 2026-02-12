@@ -598,13 +598,39 @@ function toggleDarkMode() {
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('cantonesePlayground_theme', newTheme);
 
-    // Update toggle button
-    const toggleBtn = document.querySelector('.dark-mode-toggle');
+    // Update toggle button icon
+    const icon = document.getElementById('darkModeIcon');
+    if (icon) {
+        icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    }
+
+    // Update toggle button style
+    const toggleBtn = document.getElementById('darkModeToggle');
     if (toggleBtn) {
-        toggleBtn.innerHTML = newTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+        if (newTheme === 'dark') {
+            toggleBtn.style.background = 'linear-gradient(135deg, #FEC857, #FF8A5B)';
+        } else {
+            toggleBtn.style.background = 'linear-gradient(135deg, #2D3748, #4A5568)';
+        }
     }
 
     return newTheme;
+}
+
+/**
+ * Update dark mode button on page load
+ */
+function updateDarkModeButton() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const icon = document.getElementById('darkModeIcon');
+    const toggleBtn = document.getElementById('darkModeToggle');
+
+    if (icon) {
+        icon.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+    }
+    if (toggleBtn && currentTheme === 'dark') {
+        toggleBtn.style.background = 'linear-gradient(135deg, #FEC857, #FF8A5B)';
+    }
 }
 
 // ==================== CELEBRATION ANIMATION ====================
@@ -655,6 +681,13 @@ function initUtils() {
 
     // Initialize dark mode
     initDarkMode();
+
+    // Update dark mode button after DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateDarkModeButton);
+    } else {
+        updateDarkModeButton();
+    }
 
     // Initialize swipe navigation on mobile
     if (isTouchDevice()) {

@@ -82,7 +82,7 @@ function closeMainMenuOnClickOutside(e) {
 // ==================== SUBMENU FUNCTIONS ====================
 
 /**
- * Show a submenu
+ * Show a submenu (or toggle on mobile)
  * @param {string} menuId - Submenu identifier
  */
 function showSubmenu(menuId) {
@@ -92,7 +92,27 @@ function showSubmenu(menuId) {
         submenuTimers[menuId] = null;
     }
 
-    // Hide other submenus first
+    const submenu = document.getElementById('submenu-' + menuId);
+    const isMobile = window.innerWidth <= 768;
+
+    // On mobile, toggle the submenu
+    if (isMobile && submenu) {
+        const isVisible = submenu.style.display === 'block';
+
+        // Hide all submenus first
+        const allSubmenus = document.querySelectorAll('.submenu');
+        allSubmenus.forEach(s => {
+            s.style.display = 'none';
+        });
+
+        // If it wasn't visible, show it
+        if (!isVisible) {
+            submenu.style.display = 'block';
+        }
+        return;
+    }
+
+    // Desktop behavior: hide other submenus first
     const allSubmenus = document.querySelectorAll('.submenu');
     allSubmenus.forEach(s => {
         if (s.id !== 'submenu-' + menuId) {
@@ -100,14 +120,8 @@ function showSubmenu(menuId) {
         }
     });
 
-    const submenu = document.getElementById('submenu-' + menuId);
     if (submenu) {
         submenu.style.display = 'block';
-
-        // Position submenu properly on mobile
-        if (window.innerWidth <= 768) {
-            positionSubmenuMobile(submenu);
-        }
     }
 }
 
@@ -235,6 +249,14 @@ function initTabContent(tabName) {
     if (['test1', 'test2', 'test3', 'test4', 'test5'].includes(tabName)) {
         if (typeof initUnifiedTest === 'function') {
             initUnifiedTest(tabName);
+        }
+        return;
+    }
+
+    // Initialize speaking test (test6)
+    if (tabName === 'test6') {
+        if (typeof initSpeakingTest === 'function') {
+            initSpeakingTest();
         }
         return;
     }
