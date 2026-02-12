@@ -41,8 +41,9 @@ function createSpeechRecognition() {
     }
 
     const recognition = new SpeechRecognition();
-    // Use zh-HK (widely supported for Cantonese) instead of yue-Hant-HK (often unsupported)
-    recognition.lang = 'zh-HK';
+    // yue-Hant-HK is the correct BCP 47 code for Cantonese speech recognition
+    // zh-HK defaults to Mandarin on most systems
+    recognition.lang = 'yue-Hant-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
