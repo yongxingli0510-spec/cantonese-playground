@@ -41,22 +41,25 @@ function createSpeechRecognition() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'yue-Hant-HK';
+    // Use zh-HK (widely supported for Cantonese) instead of yue-Hant-HK (often unsupported)
+    recognition.lang = 'zh-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 5;
 
     recognition.onresult = function(event) {
         const results = event.results[0];
         let recognized = results[0].transcript.trim();
 
-        // Check all alternatives for a match
-        const expected = SpeakingPractice.currentItems[SpeakingPractice.currentIndex]?.chinese || '';
+        // Get expected item data
+        const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
+        const expected = item?.chinese || '';
         let bestMatch = recognized;
 
+        // Check all alternatives for a match against chinese text, jyutping, or english
         for (let i = 0; i < results.length; i++) {
             const alt = results[i].transcript.trim();
-            if (alt === expected || expected.includes(alt) || alt.includes(expected)) {
+            if (matchesSpeakingItem(alt, item)) {
                 bestMatch = alt;
                 break;
             }
@@ -349,11 +352,9 @@ function renderSpeakingPrompt() {
 function showSpeakingResult(recognized, expected) {
     SpeakingPractice.totalAttempted++;
 
-    // Check for match (exact, contains, or partial)
-    const isCorrect = recognized === expected ||
-        recognized.includes(expected) ||
-        expected.includes(recognized) ||
-        normalized(recognized) === normalized(expected);
+    // Check for match using comprehensive matching
+    const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
+    const isCorrect = matchesSpeakingItem(recognized, item);
 
     if (isCorrect) {
         SpeakingPractice.score++;
@@ -750,6 +751,133 @@ function initSpeakingTest() {
  */
 function normalized(text) {
     return text.replace(/[，。！？、\s]/g, '');
+}
+
+/**
+ * Strip tone numbers from jyutping (e.g., "luk6" -> "luk")
+ * @param {string} jyutping
+ * @returns {string}
+ */
+function stripTones(jyutping) {
+    return jyutping.replace(/[0-9]/g, '').toLowerCase().trim();
+}
+
+/**
+ * Check if recognized speech matches a vocabulary item
+ * Compares against: Chinese text, jyutping (with/without tones), and English
+ * @param {string} recognized - What was recognized
+ * @param {Object} item - Vocabulary item { chinese, jyutping, english }
+ * @returns {boolean}
+ */
+function matchesSpeakingItem(recognized, item) {
+    if (!recognized || !item) return false;
+
+    const r = normalized(recognized);
+    const chinese = normalized(item.chinese || '');
+    const jyutping = (item.jyutping || '').toLowerCase().trim();
+    const jyutpingNoTones = stripTones(jyutping);
+    const english = (item.english || '').toLowerCase().trim();
+    const rLower = recognized.toLowerCase().trim();
+
+    // Exact match on Chinese characters
+    if (r === chinese) return true;
+    // Chinese contains/included
+    if (r && chinese && (r.includes(chinese) || chinese.includes(r))) return true;
+
+    // Match against jyutping (with tones)
+    if (rLower === jyutping) return true;
+    // Match against jyutping (without tones) - handles "luk" matching "luk6"
+    if (rLower === jyutpingNoTones) return true;
+
+    // Match against jyutping syllables for multi-syllable words
+    // e.g., recognized "do ze" should match jyutping "do1 ze6"
+    const rNoTones = stripTones(rLower);
+    const jyutpingSyllables = jyutpingNoTones.replace(/\s+/g, '');
+    const rSyllables = rNoTones.replace(/\s+/g, '');
+    if (rSyllables && jyutpingSyllables && rSyllables === jyutpingSyllables) return true;
+
+    // Phonetic similarity: recognized English-like text matches jyutping sounds
+    // e.g., "look" sounds like "luk", "see" sounds like "si"
+    if (rLower && jyutpingNoTones && phoneticMatch(rLower, jyutpingNoTones)) return true;
+
+    // Match against English meaning (if recognition fell back to English)
+    if (rLower === english) return true;
+    if (rLower && english && (rLower.includes(english) || english.includes(rLower))) return true;
+
+    return false;
+}
+
+/**
+ * Check if an English-recognized word sounds like the Cantonese jyutping
+ * Handles cases where speech recognition falls back to English
+ * @param {string} englishText - Recognized English text (lowercase)
+ * @param {string} jyutpingNoTones - Jyutping without tone numbers (lowercase)
+ * @returns {boolean}
+ */
+function phoneticMatch(englishText, jyutpingNoTones) {
+    // Remove spaces and compare
+    const e = englishText.replace(/\s+/g, '');
+    const j = jyutpingNoTones.replace(/\s+/g, '');
+
+    // Direct match after cleanup
+    if (e === j) return true;
+
+    // Common English-to-Cantonese phonetic mappings
+    // e.g., "look" -> "luk", "see" -> "si", "my" -> "mai"
+    const phoneticMap = {
+        'look': 'luk', 'luck': 'luk',
+        'see': 'si', 'sea': 'si',
+        'my': 'mai', 'mine': 'main',
+        'ye': 'je', 'yeah': 'je',
+        'knee': 'nei', 'nay': 'nei',
+        'go': 'gou', 'goal': 'gou',
+        'high': 'hai', 'hi': 'hai',
+        'boy': 'boi',
+        'toy': 'toi',
+        'joy': 'zoi',
+        'sue': 'syu', 'shoe': 'syu',
+        'you': 'jau',
+        'may': 'mei',
+        'say': 'sei', 'say': 'sai',
+        'die': 'dai', 'dye': 'dai',
+        'guy': 'gai',
+        'song': 'soeng', 'sung': 'sung',
+        'gung': 'gung', 'kung': 'gung',
+        'hung': 'hung',
+        'done': 'daan',
+        'one': 'jat', 'won': 'jat',
+        'two': 'ji',
+        'three': 'saam',
+        'four': 'sei',
+        'five': 'ng',
+        'six': 'luk',
+        'seven': 'cat',
+        'eight': 'baat',
+        'nine': 'gau',
+        'ten': 'sap',
+    };
+
+    // Check if recognized word maps to the expected jyutping
+    const mapped = phoneticMap[e];
+    if (mapped && mapped === j) return true;
+
+    // Check each word in multi-word recognition
+    const words = englishText.split(/\s+/);
+    const jSyllables = jyutpingNoTones.split(/\s+/);
+
+    if (words.length === jSyllables.length) {
+        let allMatch = true;
+        for (let i = 0; i < words.length; i++) {
+            const wordMapped = phoneticMap[words[i]];
+            if (wordMapped !== jSyllables[i] && words[i] !== jSyllables[i]) {
+                allMatch = false;
+                break;
+            }
+        }
+        if (allMatch) return true;
+    }
+
+    return false;
 }
 
 /**
