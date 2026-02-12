@@ -823,6 +823,102 @@ if (typeof testConfig !== 'undefined') {
                 icon: '👨‍👩‍👧‍👦',
                 categories: ['family'],
                 questionCount: 10
+            },
+            {
+                id: '6.7',
+                name: 'Weather',
+                chineseName: '天氣',
+                icon: '🌤️',
+                categories: ['weather'],
+                questionCount: 10
+            },
+            {
+                id: '6.8',
+                name: 'Clothing',
+                chineseName: '衫褲',
+                icon: '👕',
+                categories: ['clothing'],
+                questionCount: 10
+            },
+            {
+                id: '6.9',
+                name: 'Sports',
+                chineseName: '運動',
+                icon: '⚽',
+                categories: ['sports'],
+                questionCount: 10
+            },
+            {
+                id: '6.10',
+                name: 'Body Parts',
+                chineseName: '身體',
+                icon: '👤',
+                categories: ['body'],
+                questionCount: 10
+            },
+            {
+                id: '6.11',
+                name: 'Places',
+                chineseName: '地方',
+                icon: '📍',
+                categories: ['places'],
+                questionCount: 10
+            },
+            {
+                id: '6.12',
+                name: 'Occupations',
+                chineseName: '職業',
+                icon: '💼',
+                categories: ['occupations'],
+                questionCount: 10
+            },
+            {
+                id: '6.13',
+                name: 'Hobbies',
+                chineseName: '興趣',
+                icon: '🎭',
+                categories: ['hobbies'],
+                questionCount: 10
+            },
+            {
+                id: '6.14',
+                name: 'Daily Activities',
+                chineseName: '日常',
+                icon: '🌅',
+                categories: ['dailyactivities'],
+                questionCount: 10
+            },
+            {
+                id: '6.15',
+                name: 'Transport',
+                chineseName: '交通',
+                icon: '🚌',
+                categories: ['transport'],
+                questionCount: 10
+            },
+            {
+                id: '6.16',
+                name: 'Emotions',
+                chineseName: '情緒',
+                icon: '😊',
+                categories: ['emotions'],
+                questionCount: 10
+            },
+            {
+                id: '6.17',
+                name: 'Nature',
+                chineseName: '大自然',
+                icon: '🌿',
+                categories: ['nature'],
+                questionCount: 10
+            },
+            {
+                id: '6.18',
+                name: 'Holidays',
+                chineseName: '節日',
+                icon: '🎉',
+                categories: ['lunarnewyear', 'easter', 'dragonboat', 'canadaday', 'midautumn', 'thanksgiving', 'halloween', 'christmas'],
+                questionCount: 10
             }
         ]
     };
