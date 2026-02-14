@@ -99,9 +99,17 @@ function createSpeechRecognition() {
 
     recognition.onend = function() {
         if (SpeakingPractice.isRecording) {
-            // Recognition ended without result - force stop
             stopRecordingInternal();
-            showSpeakingError('No speech detected. Please try again.');
+
+            // If using yue-Hant-HK and got no result, auto-fallback to zh-HK
+            if (!SpeakingPractice.useFallbackLang) {
+                console.log('No result with yue-Hant-HK, falling back to zh-HK');
+                SpeakingPractice.useFallbackLang = true;
+                SpeakingPractice.recognition = null;
+                showSpeakingError('Switching to compatible speech mode. Please try again.');
+            } else {
+                showSpeakingError('No speech detected. Please try again.');
+            }
         }
     };
 

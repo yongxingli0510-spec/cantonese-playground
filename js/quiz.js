@@ -452,6 +452,7 @@ function startQuizSpeakingRecognition(testId) {
     if (UnifiedTest._quizRecording || UnifiedTest.isAnswered) return;
 
     UnifiedTest._quizRecording = true;
+    UnifiedTest._quizGotResult = false;
 
     const micBtn = document.getElementById(`${testId}MicBtn`);
     if (micBtn) micBtn.classList.add('recording');
@@ -468,8 +469,9 @@ function startQuizSpeakingRecognition(testId) {
         return;
     }
 
+    const useFallback = typeof SpeakingPractice !== 'undefined' && SpeakingPractice.useFallbackLang;
     const recognition = new SpeechRecognition();
-    recognition.lang = (typeof SpeakingPractice !== 'undefined' && SpeakingPractice.useFallbackLang) ? 'zh-HK' : 'yue-Hant-HK';
+    recognition.lang = useFallback ? 'zh-HK' : 'yue-Hant-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
@@ -477,6 +479,7 @@ function startQuizSpeakingRecognition(testId) {
     UnifiedTest._quizRecognition = recognition;
 
     recognition.onresult = function(event) {
+        UnifiedTest._quizGotResult = true;
         const results = event.results[0];
         let recognized = results[0].transcript.trim();
 
@@ -497,16 +500,20 @@ function startQuizSpeakingRecognition(testId) {
     };
 
     recognition.onerror = function(event) {
-        console.warn('Quiz speech recognition error:', event.error);
+        console.warn('Quiz speech recognition error:', event.error, 'lang:', recognition.lang);
         stopQuizRecordingInternal(testId);
 
-        if (event.error === 'network' && typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
+        if ((event.error === 'network' || event.error === 'no-speech') && typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
+            // yue-Hant-HK not working on this device, fall back to zh-HK
+            console.log('Falling back to zh-HK for quiz speech recognition');
             SpeakingPractice.useFallbackLang = true;
             showQuizSpeakingError(testId, 'Switching to compatible speech mode. Please try again.');
         } else if (event.error === 'no-speech') {
             showQuizSpeakingError(testId, 'No speech detected. Please try again.');
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             showQuizSpeakingError(testId, 'Microphone access denied. Please allow microphone access.');
+        } else if (event.error === 'network') {
+            showQuizSpeakingError(testId, 'Network error. Speech recognition requires internet access.');
         } else if (event.error === 'aborted') {
             // User-initiated abort
         } else {
@@ -515,9 +522,17 @@ function startQuizSpeakingRecognition(testId) {
     };
 
     recognition.onend = function() {
-        if (UnifiedTest._quizRecording) {
+        if (UnifiedTest._quizRecording && !UnifiedTest._quizGotResult) {
             stopQuizRecordingInternal(testId);
-            showQuizSpeakingError(testId, 'No speech detected. Please try again.');
+
+            // If using yue-Hant-HK and got no result, auto-fallback to zh-HK
+            if (typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
+                console.log('No result with yue-Hant-HK, falling back to zh-HK');
+                SpeakingPractice.useFallbackLang = true;
+                showQuizSpeakingError(testId, 'Switching to compatible speech mode. Please try again.');
+            } else {
+                showQuizSpeakingError(testId, 'No speech detected. Please try again.');
+            }
         }
     };
 
