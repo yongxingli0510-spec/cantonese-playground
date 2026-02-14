@@ -23,7 +23,9 @@ const SpeakingPractice = {
     autoStopTimer: null,
     micPermissionGranted: false,
     touchActive: false,
-    // useFallbackLang removed — always use yue-Hant-HK
+    // Cantonese language fallback chain (never Mandarin)
+    cantoneseLangs: ['yue-Hant-HK', 'yue-HK', 'zh-yue'],
+    currentLangIndex: 0,
     // Audio visualizer state
     audioContext: null,
     analyser: null,
@@ -94,11 +96,12 @@ function createSpeechRecognition() {
         return null;
     }
 
-    speakingDebug('Creating recognition, lang=yue-Hant-HK');
+    const langCode = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex] || 'yue-Hant-HK';
+    speakingDebug('Creating recognition, lang=' + langCode + ' (index ' + SpeakingPractice.currentLangIndex + '/' + (SpeakingPractice.cantoneseLangs.length - 1) + ')');
     speakingDebug('API: ' + (window.SpeechRecognition ? 'native' : 'webkit'));
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'yue-Hant-HK';
+    recognition.lang = langCode;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
@@ -145,12 +148,19 @@ function createSpeechRecognition() {
         speakingDebug('error: type="' + event.error + '" msg="' + (event.message || '') + '"');
         stopRecordingInternal();
 
-        if (event.error === 'no-speech') {
+        // On network error, try next Cantonese language code
+        if (event.error === 'network' && SpeakingPractice.currentLangIndex < SpeakingPractice.cantoneseLangs.length - 1) {
+            SpeakingPractice.currentLangIndex++;
+            SpeakingPractice.recognition = null;
+            const nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
+            speakingDebug('Network error → trying ' + nextLang);
+            showSpeakingErrorDebug('Trying ' + nextLang + '... Tap mic again.');
+        } else if (event.error === 'no-speech') {
             showSpeakingErrorDebug('No speech detected. Please try again.');
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             showSpeakingErrorDebug('Mic access denied. Allow microphone and use HTTPS.');
         } else if (event.error === 'network') {
-            showSpeakingErrorDebug('Network error. Speech recognition needs internet.');
+            showSpeakingErrorDebug('Network error. All Cantonese codes failed.');
         } else if (event.error === 'aborted') {
             speakingDebug('aborted (user-initiated)');
         } else {
@@ -163,7 +173,17 @@ function createSpeechRecognition() {
 
         if (SpeakingPractice.isRecording && !SpeakingPractice._gotResult) {
             stopRecordingInternal();
-            showSpeakingErrorDebug('No speech detected. Please try again.');
+
+            // On no result, try next Cantonese language code
+            if (SpeakingPractice.currentLangIndex < SpeakingPractice.cantoneseLangs.length - 1) {
+                SpeakingPractice.currentLangIndex++;
+                SpeakingPractice.recognition = null;
+                const nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
+                speakingDebug('No result → trying ' + nextLang);
+                showSpeakingErrorDebug('Trying ' + nextLang + '... Tap mic again.');
+            } else {
+                showSpeakingErrorDebug('No speech detected. Please try again.');
+            }
         }
     };
 

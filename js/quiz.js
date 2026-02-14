@@ -486,12 +486,15 @@ function startQuizSpeakingRecognition(testId) {
         return;
     }
 
-    debugLog('Creating recognition, lang=yue-Hant-HK');
+    const langCode = (typeof SpeakingPractice !== 'undefined')
+        ? SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex] || 'yue-Hant-HK'
+        : 'yue-Hant-HK';
+    debugLog('Creating recognition, lang=' + langCode);
     debugLog('API: ' + (window.SpeechRecognition ? 'native' : 'webkit'));
     debugLog('UserAgent: ' + navigator.userAgent.slice(0, 80));
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'yue-Hant-HK';
+    recognition.lang = langCode;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
@@ -553,12 +556,17 @@ function startQuizSpeakingRecognition(testId) {
         debugLog('Event: error, type="' + event.error + '", message="' + (event.message || '') + '"');
         stopQuizRecordingInternal(testId);
 
-        if (event.error === 'no-speech') {
+        if (event.error === 'network' && typeof SpeakingPractice !== 'undefined' && SpeakingPractice.currentLangIndex < SpeakingPractice.cantoneseLangs.length - 1) {
+            SpeakingPractice.currentLangIndex++;
+            var nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
+            debugLog('Network error → trying ' + nextLang);
+            showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.', UnifiedTest._quizDebugLog);
+        } else if (event.error === 'no-speech') {
             showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             showQuizSpeakingDebug(testId, 'Mic access denied', UnifiedTest._quizDebugLog);
         } else if (event.error === 'network') {
-            showQuizSpeakingDebug(testId, 'Network error', UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'Network error. All Cantonese codes failed.', UnifiedTest._quizDebugLog);
         } else if (event.error === 'aborted') {
             debugLog('Aborted (user-initiated)');
         } else {
@@ -571,7 +579,15 @@ function startQuizSpeakingRecognition(testId) {
 
         if (UnifiedTest._quizRecording && !UnifiedTest._quizGotResult) {
             stopQuizRecordingInternal(testId);
-            showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
+
+            if (typeof SpeakingPractice !== 'undefined' && SpeakingPractice.currentLangIndex < SpeakingPractice.cantoneseLangs.length - 1) {
+                SpeakingPractice.currentLangIndex++;
+                var nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
+                debugLog('No result → trying ' + nextLang);
+                showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.', UnifiedTest._quizDebugLog);
+            } else {
+                showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
+            }
         }
     };
 
