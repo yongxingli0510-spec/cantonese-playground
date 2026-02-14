@@ -23,7 +23,7 @@ const SpeakingPractice = {
     autoStopTimer: null,
     micPermissionGranted: false,
     touchActive: false,
-    useFallbackLang: false,
+    // useFallbackLang removed — always use yue-Hant-HK
     // Audio visualizer state
     audioContext: null,
     analyser: null,
@@ -34,6 +34,55 @@ const SpeakingPractice = {
 
 // ==================== SPEECH RECOGNITION ====================
 
+// ==================== DEBUG LOGGING ====================
+
+SpeakingPractice._debugLog = [];
+
+function speakingDebug(msg) {
+    const ts = new Date().toLocaleTimeString();
+    const entry = '[' + ts + '] ' + msg;
+    SpeakingPractice._debugLog.push(entry);
+    console.log('[SpeechDebug]', msg);
+    // Keep last 30 entries
+    if (SpeakingPractice._debugLog.length > 30) {
+        SpeakingPractice._debugLog.shift();
+    }
+}
+
+/**
+ * Show error with debug log panel in the speaking modal
+ */
+function showSpeakingErrorDebug(message) {
+    // Re-render prompt so user can try again
+    renderSpeakingPrompt();
+
+    // Add debug panel to the speaking content
+    const container = document.getElementById('speakingContent');
+    if (container) {
+        const logHtml = SpeakingPractice._debugLog.map(function(l) { return '<div>' + l + '</div>'; }).join('');
+        const debugDiv = document.createElement('div');
+        debugDiv.innerHTML = `
+            <div style="margin: 10px auto; max-width: 400px; text-align: center;">
+                <div style="color: #f56565; font-weight: 700; margin-bottom: 8px;">${message}</div>
+                <div style="background: #1a202c; color: #68d391; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.65rem; text-align: left; max-height: 180px; overflow-y: auto; word-break: break-all;">
+                    <div style="color: #fbd38d; margin-bottom: 4px; font-weight: 700;">Debug Log:</div>
+                    ${logHtml}
+                </div>
+            </div>
+        `;
+        container.appendChild(debugDiv);
+    }
+
+    // Also show toast
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #f56565; color: white; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; z-index: 3000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
+}
+
+// ==================== SPEECH RECOGNITION ====================
+
 /**
  * Create a fresh SpeechRecognition instance for each recording session
  * @returns {SpeechRecognition|null}
@@ -41,20 +90,37 @@ const SpeakingPractice = {
 function createSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
+        speakingDebug('API not found: SpeechRecognition=' + !!window.SpeechRecognition + ' webkit=' + !!window.webkitSpeechRecognition);
         return null;
     }
 
+    speakingDebug('Creating recognition, lang=yue-Hant-HK');
+    speakingDebug('API: ' + (window.SpeechRecognition ? 'native' : 'webkit'));
+
     const recognition = new SpeechRecognition();
-    // yue-Hant-HK is the correct BCP 47 code for Cantonese speech recognition
-    // but it may not work on desktop Chrome (network error), so fall back to zh-HK
-    recognition.lang = SpeakingPractice.useFallbackLang ? 'zh-HK' : 'yue-Hant-HK';
+    recognition.lang = 'yue-Hant-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
 
+    SpeakingPractice._gotResult = false;
+
+    recognition.onaudiostart = function() { speakingDebug('audiostart (mic capturing)'); };
+    recognition.onsoundstart = function() { speakingDebug('soundstart (sound detected)'); };
+    recognition.onspeechstart = function() { speakingDebug('speechstart (speech detected)'); };
+    recognition.onspeechend = function() { speakingDebug('speechend'); };
+    recognition.onsoundend = function() { speakingDebug('soundend'); };
+    recognition.onaudioend = function() { speakingDebug('audioend'); };
+
     recognition.onresult = function(event) {
+        SpeakingPractice._gotResult = true;
         const results = event.results[0];
         let recognized = results[0].transcript.trim();
+
+        speakingDebug('result: "' + recognized + '" conf=' + results[0].confidence.toFixed(2));
+        for (let i = 1; i < results.length; i++) {
+            speakingDebug('  alt[' + i + ']: "' + results[i].transcript.trim() + '"');
+        }
 
         // Get expected item data
         const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
@@ -66,6 +132,7 @@ function createSpeechRecognition() {
             const alt = results[i].transcript.trim();
             if (matchesSpeakingItem(alt, item)) {
                 bestMatch = alt;
+                speakingDebug('matched alt[' + i + ']: "' + alt + '"');
                 break;
             }
         }
@@ -75,41 +142,28 @@ function createSpeechRecognition() {
     };
 
     recognition.onerror = function(event) {
-        console.warn('Speech recognition error:', event.error, 'lang:', recognition.lang);
+        speakingDebug('error: type="' + event.error + '" msg="' + (event.message || '') + '"');
         stopRecordingInternal();
 
-        if (event.error === 'network' && !SpeakingPractice.useFallbackLang) {
-            // yue-Hant-HK not supported on this device/browser, fall back to zh-HK
-            console.log('Falling back to zh-HK for speech recognition');
-            SpeakingPractice.useFallbackLang = true;
-            SpeakingPractice.recognition = null;
-            showSpeakingError('Switching to compatible speech mode. Please try again.');
-        } else if (event.error === 'no-speech') {
-            showSpeakingError('No speech detected. Please try again.');
+        if (event.error === 'no-speech') {
+            showSpeakingErrorDebug('No speech detected. Please try again.');
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showSpeakingError('Microphone access denied. Please allow microphone access and use HTTPS.');
+            showSpeakingErrorDebug('Mic access denied. Allow microphone and use HTTPS.');
         } else if (event.error === 'network') {
-            showSpeakingError('Network error. Speech recognition requires internet access.');
+            showSpeakingErrorDebug('Network error. Speech recognition needs internet.');
         } else if (event.error === 'aborted') {
-            // User-initiated abort, no error to show
+            speakingDebug('aborted (user-initiated)');
         } else {
-            showSpeakingError('Could not recognize speech. Please try again.');
+            showSpeakingErrorDebug('Error: ' + event.error);
         }
     };
 
     recognition.onend = function() {
-        if (SpeakingPractice.isRecording) {
-            stopRecordingInternal();
+        speakingDebug('end (gotResult=' + SpeakingPractice._gotResult + ' recording=' + SpeakingPractice.isRecording + ')');
 
-            // If using yue-Hant-HK and got no result, auto-fallback to zh-HK
-            if (!SpeakingPractice.useFallbackLang) {
-                console.log('No result with yue-Hant-HK, falling back to zh-HK');
-                SpeakingPractice.useFallbackLang = true;
-                SpeakingPractice.recognition = null;
-                showSpeakingError('Switching to compatible speech mode. Please try again.');
-            } else {
-                showSpeakingError('No speech detected. Please try again.');
-            }
+        if (SpeakingPractice.isRecording && !SpeakingPractice._gotResult) {
+            stopRecordingInternal();
+            showSpeakingErrorDebug('No speech detected. Please try again.');
         }
     };
 
@@ -460,6 +514,13 @@ function startRecording() {
 
     SpeakingPractice.isRecording = true;
     SpeakingPractice.audioChunks = [];
+    SpeakingPractice._gotResult = false;
+    SpeakingPractice._debugLog = [];
+
+    speakingDebug('startRecording called');
+    speakingDebug('Browser: ' + navigator.userAgent.slice(0, 80));
+    speakingDebug('Protocol: ' + location.protocol);
+    speakingDebug('lang: yue-Hant-HK (Cantonese only)');
 
     // Visual feedback
     const micBtn = document.getElementById('micBtn');
@@ -471,8 +532,8 @@ function startRecording() {
         micHint.textContent = 'Listening... tap to stop';
     }
 
-    // Start audio visualizer
-    startAudioVisualizer();
+    // Start animated visualizer (no getUserMedia — avoids mic conflict with SpeechRecognition)
+    startAnimatedVisualizer();
 
     // Create a fresh instance if needed (e.g., after language fallback)
     if (!SpeakingPractice.recognition) {
@@ -481,22 +542,27 @@ function startRecording() {
     if (SpeakingPractice.recognition) {
         try {
             SpeakingPractice.recognition.start();
+            speakingDebug('recognition.start() OK');
         } catch (e) {
-            console.warn('Recognition start error:', e);
+            speakingDebug('recognition.start() THREW: ' + e.message + ' — recreating');
             // If start fails (e.g., instance in bad state), recreate as fallback
             SpeakingPractice.recognition = createSpeechRecognition();
             if (SpeakingPractice.recognition) {
                 try {
                     SpeakingPractice.recognition.start();
+                    speakingDebug('recognition.start() retry OK');
                 } catch (e2) {
-                    console.warn('Recognition retry error:', e2);
+                    speakingDebug('recognition.start() retry THREW: ' + e2.message);
                 }
             }
         }
+    } else {
+        speakingDebug('recognition is null — API not available');
     }
 
-    // Auto-stop after 8 seconds (longer to allow time for permission prompt on first use)
+    // Auto-stop after 8 seconds
     SpeakingPractice.autoStopTimer = setTimeout(() => {
+        speakingDebug('Auto-stop at 8s');
         stopRecording();
     }, 8000);
 }
@@ -636,6 +702,52 @@ function closeSpeakingPractice() {
 }
 
 // ==================== AUDIO VISUALIZER ====================
+
+/**
+ * Start animated visualizer bars WITHOUT getUserMedia (avoids mic conflict with SpeechRecognition)
+ * Used by vocabulary page speaking practice
+ */
+function startAnimatedVisualizer() {
+    const vizContainer = document.getElementById('vizContainer');
+    const barsContainer = document.getElementById('waveformBars');
+    if (!vizContainer || !barsContainer) return;
+
+    // Show visualizer
+    vizContainer.style.display = 'block';
+
+    // Create waveform bars
+    const BAR_COUNT = 20;
+    barsContainer.innerHTML = '';
+    for (let i = 0; i < BAR_COUNT; i++) {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'width: 8px; min-height: 4px; height: 4px; background: linear-gradient(180deg, #f56565, #e53e3e); border-radius: 4px; transition: height 0.05s ease;';
+        bar.dataset.index = i;
+        barsContainer.appendChild(bar);
+    }
+
+    // Use fallback animation (no getUserMedia)
+    animateWaveformFallback(barsContainer, BAR_COUNT);
+
+    // Start countdown timer
+    SpeakingPractice.recordingStartTime = Date.now();
+    const DURATION = 8000;
+    SpeakingPractice.countdownInterval = setInterval(function() {
+        const elapsed = Date.now() - SpeakingPractice.recordingStartTime;
+        const remaining = Math.max(0, DURATION - elapsed);
+        const pct = (remaining / DURATION) * 100;
+
+        const bar = document.getElementById('countdownBar');
+        if (bar) bar.style.width = pct + '%';
+
+        const text = document.getElementById('countdownText');
+        if (text) text.textContent = Math.ceil(remaining / 1000) + 's';
+
+        if (remaining <= 0) {
+            clearInterval(SpeakingPractice.countdownInterval);
+            SpeakingPractice.countdownInterval = null;
+        }
+    }, 100);
+}
 
 /**
  * Start the real-time audio waveform visualizer and countdown timer

@@ -426,6 +426,11 @@ function renderSpeaking(container, question, testId) {
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 8px;" id="${testId}MicHint">Tap to speak</p>
             </div>
             <div id="${testId}SpeakingResult" style="display: none; margin-top: 15px;"></div>
+            <div style="margin-top: 18px;">
+                <button class="next-btn" id="${testId}SkipSpeaking" onclick="skipSpeakingQuestion('${testId}')" style="padding: 8px 22px; font-size: 0.9rem; background: linear-gradient(135deg, #a0aec0, #718096);">
+                    ⏭ Skip
+                </button>
+            </div>
         </div>
     `;
 
@@ -453,6 +458,7 @@ function startQuizSpeakingRecognition(testId) {
 
     UnifiedTest._quizRecording = true;
     UnifiedTest._quizGotResult = false;
+    UnifiedTest._quizDebugLog = [];
 
     const micBtn = document.getElementById(`${testId}MicBtn`);
     if (micBtn) micBtn.classList.add('recording');
@@ -462,26 +468,69 @@ function startQuizSpeakingRecognition(testId) {
     // Start visualizer with testId prefix
     startQuizAudioVisualizer(testId);
 
+    // Debug helper
+    function debugLog(msg) {
+        const ts = new Date().toLocaleTimeString();
+        UnifiedTest._quizDebugLog.push('[' + ts + '] ' + msg);
+        console.log('[SpeechDebug]', msg);
+    }
+
     // Create speech recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        showQuizSpeakingError(testId, 'Speech recognition not supported.');
+        showQuizSpeakingDebug(testId, 'API not available', [
+            'SpeechRecognition: NOT FOUND',
+            'webkitSpeechRecognition: NOT FOUND',
+            'Browser: ' + navigator.userAgent
+        ]);
         return;
     }
 
-    const useFallback = typeof SpeakingPractice !== 'undefined' && SpeakingPractice.useFallbackLang;
+    debugLog('Creating recognition, lang=yue-Hant-HK');
+    debugLog('API: ' + (window.SpeechRecognition ? 'native' : 'webkit'));
+    debugLog('UserAgent: ' + navigator.userAgent.slice(0, 80));
+
     const recognition = new SpeechRecognition();
-    recognition.lang = useFallback ? 'zh-HK' : 'yue-Hant-HK';
+    recognition.lang = 'yue-Hant-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
 
     UnifiedTest._quizRecognition = recognition;
 
+    recognition.onaudiostart = function() {
+        debugLog('Event: audiostart (mic is capturing)');
+    };
+
+    recognition.onsoundstart = function() {
+        debugLog('Event: soundstart (sound detected)');
+    };
+
+    recognition.onspeechstart = function() {
+        debugLog('Event: speechstart (speech detected)');
+    };
+
+    recognition.onspeechend = function() {
+        debugLog('Event: speechend');
+    };
+
+    recognition.onsoundend = function() {
+        debugLog('Event: soundend');
+    };
+
+    recognition.onaudioend = function() {
+        debugLog('Event: audioend');
+    };
+
     recognition.onresult = function(event) {
         UnifiedTest._quizGotResult = true;
         const results = event.results[0];
         let recognized = results[0].transcript.trim();
+
+        debugLog('Event: result, transcript="' + recognized + '", confidence=' + results[0].confidence.toFixed(2));
+        for (let i = 1; i < results.length; i++) {
+            debugLog('  alt[' + i + ']: "' + results[i].transcript.trim() + '" conf=' + results[i].confidence.toFixed(2));
+        }
 
         const question = UnifiedTest.questions[UnifiedTest.currentQuestionIndex];
         const item = question.speakingItem;
@@ -491,6 +540,7 @@ function startQuizSpeakingRecognition(testId) {
             const alt = results[i].transcript.trim();
             if (typeof matchesSpeakingItem === 'function' && matchesSpeakingItem(alt, item)) {
                 recognized = alt;
+                debugLog('Matched alt[' + i + ']: "' + alt + '"');
                 break;
             }
         }
@@ -500,51 +550,43 @@ function startQuizSpeakingRecognition(testId) {
     };
 
     recognition.onerror = function(event) {
-        console.warn('Quiz speech recognition error:', event.error, 'lang:', recognition.lang);
+        debugLog('Event: error, type="' + event.error + '", message="' + (event.message || '') + '"');
         stopQuizRecordingInternal(testId);
 
-        if ((event.error === 'network' || event.error === 'no-speech') && typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
-            // yue-Hant-HK not working on this device, fall back to zh-HK
-            console.log('Falling back to zh-HK for quiz speech recognition');
-            SpeakingPractice.useFallbackLang = true;
-            showQuizSpeakingError(testId, 'Switching to compatible speech mode. Please try again.');
-        } else if (event.error === 'no-speech') {
-            showQuizSpeakingError(testId, 'No speech detected. Please try again.');
+        if (event.error === 'no-speech') {
+            showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showQuizSpeakingError(testId, 'Microphone access denied. Please allow microphone access.');
+            showQuizSpeakingDebug(testId, 'Mic access denied', UnifiedTest._quizDebugLog);
         } else if (event.error === 'network') {
-            showQuizSpeakingError(testId, 'Network error. Speech recognition requires internet access.');
+            showQuizSpeakingDebug(testId, 'Network error', UnifiedTest._quizDebugLog);
         } else if (event.error === 'aborted') {
-            // User-initiated abort
+            debugLog('Aborted (user-initiated)');
         } else {
-            showQuizSpeakingError(testId, 'Could not recognize speech. Please try again.');
+            showQuizSpeakingDebug(testId, 'Error: ' + event.error, UnifiedTest._quizDebugLog);
         }
     };
 
     recognition.onend = function() {
+        debugLog('Event: end (gotResult=' + UnifiedTest._quizGotResult + ', recording=' + UnifiedTest._quizRecording + ')');
+
         if (UnifiedTest._quizRecording && !UnifiedTest._quizGotResult) {
             stopQuizRecordingInternal(testId);
-
-            // If using yue-Hant-HK and got no result, auto-fallback to zh-HK
-            if (typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
-                console.log('No result with yue-Hant-HK, falling back to zh-HK');
-                SpeakingPractice.useFallbackLang = true;
-                showQuizSpeakingError(testId, 'Switching to compatible speech mode. Please try again.');
-            } else {
-                showQuizSpeakingError(testId, 'No speech detected. Please try again.');
-            }
+            showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
         }
     };
 
     try {
         recognition.start();
+        debugLog('recognition.start() called OK');
     } catch (e) {
-        console.warn('Recognition start error:', e);
+        debugLog('recognition.start() THREW: ' + e.message);
         stopQuizRecordingInternal(testId);
+        showQuizSpeakingDebug(testId, 'Start failed: ' + e.message, UnifiedTest._quizDebugLog);
     }
 
     // Auto-stop after 8 seconds
     UnifiedTest._quizAutoStop = setTimeout(() => {
+        debugLog('Auto-stop at 8s');
         stopQuizRecording(testId);
     }, 8000);
 }
@@ -667,14 +709,74 @@ function handleQuizSpeakingResult(testId, recognized) {
 }
 
 /**
- * Show speaking error toast for quiz
+ * Skip a speaking question (counts as wrong, advances immediately)
  */
-function showQuizSpeakingError(testId, message) {
+function skipSpeakingQuestion(testId) {
+    if (UnifiedTest.isAnswered) return;
+
+    // Stop any active recording
+    if (UnifiedTest._quizRecording) {
+        stopQuizRecording(testId);
+    }
+
+    UnifiedTest.isAnswered = true;
+
+    const question = UnifiedTest.questions[UnifiedTest.currentQuestionIndex];
+
+    // Store as skipped
+    UnifiedTest.userAnswers.push({
+        questionNumber: UnifiedTest.currentQuestionIndex + 1,
+        type: 'speaking',
+        picture: question.picture || '🎤',
+        chinese: question.chinese,
+        correctAnswer: question.chinese,
+        userAnswer: '(skipped)',
+        isCorrect: false
+    });
+
+    // Update progress
+    const progress = ((UnifiedTest.currentQuestionIndex + 1) / UnifiedTest.questions.length) * 100;
+    document.getElementById(`${testId}Progress`).style.width = progress + '%';
+
+    // Advance to next question
+    UnifiedTest.currentQuestionIndex++;
+    if (UnifiedTest.currentQuestionIndex >= UnifiedTest.questions.length) {
+        endUnifiedTest(testId);
+    } else {
+        loadUnifiedQuestion(testId);
+    }
+}
+
+/**
+ * Show speaking error with debug log on screen
+ */
+function showQuizSpeakingDebug(testId, message, debugLog) {
+    const resultDiv = document.getElementById(`${testId}SpeakingResult`);
+    if (resultDiv) {
+        resultDiv.style.display = 'block';
+        const logHtml = (debugLog || []).map(l => '<div>' + l + '</div>').join('');
+        resultDiv.innerHTML = `
+            <div style="color: #f56565; font-weight: 700; margin-bottom: 8px;">${message}</div>
+            <div style="background: #1a202c; color: #68d391; border-radius: 8px; padding: 10px; margin-top: 8px; font-family: monospace; font-size: 0.7rem; text-align: left; max-height: 200px; overflow-y: auto; word-break: break-all;">
+                <div style="color: #fbd38d; margin-bottom: 4px; font-weight: 700;">Debug Log:</div>
+                ${logHtml}
+            </div>
+        `;
+    }
+
+    // Also show toast
     const toast = document.createElement('div');
     toast.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #f56565; color: white; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; z-index: 3000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);';
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+}
+
+/**
+ * Show speaking error toast (simple, no debug)
+ */
+function showQuizSpeakingError(testId, message) {
+    showQuizSpeakingDebug(testId, message, UnifiedTest._quizDebugLog || []);
 }
 
 // ==================== QUIZ AUDIO VISUALIZER ====================
@@ -1155,6 +1257,7 @@ function initQuiz() {
     window.playQuestionAudio = playQuestionAudio;
     window.startQuizSpeakingRecognition = startQuizSpeakingRecognition;
     window.stopQuizRecording = stopQuizRecording;
+    window.skipSpeakingQuestion = skipSpeakingQuestion;
 }
 
 if (document.readyState === 'loading') {

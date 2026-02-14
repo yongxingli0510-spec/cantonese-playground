@@ -1338,6 +1338,21 @@ h2[onclick]:hover, h3[onclick]:hover {
     100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.4), 0 6px 20px rgba(229, 62, 62, 0.4); }
 }
 
+/* Audio waveform visualizer */
+#waveformBars > div {
+    will-change: height;
+    transform-origin: bottom;
+}
+
+#vizContainer {
+    animation: vizFadeIn 0.3s ease;
+}
+
+@keyframes vizFadeIn {
+    from { opacity: 0; transform: scaleY(0.5); }
+    to { opacity: 1; transform: scaleY(1); }
+}
+
 .jyutping-reveal {
     background: none;
     border: 1px dashed var(--text-muted);
