@@ -862,9 +862,142 @@ function stripTones(jyutping) {
     return jyutping.replace(/[0-9]/g, '').toLowerCase().trim();
 }
 
+// ==================== CHARACTER → JYUTPING MAP ====================
+
+let _charJyutpingMap = null;
+
 /**
- * Check if recognized speech matches a vocabulary item
- * Compares against: Chinese text, jyutping (with/without tones), and English
+ * Build a character→jyutping map from all vocabulary items.
+ * Maps each Chinese character to its jyutping syllable (without tones).
+ * Cached after first build.
+ * @returns {Object} Map of character → jyutping syllable
+ */
+function getCharJyutpingMap() {
+    if (_charJyutpingMap) return _charJyutpingMap;
+
+    const map = {};
+    if (typeof vocabularyData === 'undefined') return map;
+
+    // Extract character→jyutping from vocabulary items
+    for (const category of Object.values(vocabularyData)) {
+        for (const item of category) {
+            const chars = (item.chinese || '').replace(/[，。！？、\s]/g, '');
+            const syllables = (item.jyutping || '').trim().split(/\s+/);
+
+            // Only map when character count matches syllable count
+            if (chars.length === syllables.length) {
+                for (let i = 0; i < chars.length; i++) {
+                    if (!map[chars[i]]) {
+                        map[chars[i]] = stripTones(syllables[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    // Supplementary: common characters that speech recognition returns
+    // but may not be in our vocabulary (Cantonese jyutping, no tones)
+    const extras = {
+        '哈': 'haa', '嗨': 'haai', '蛤': 'haa', '瞎': 'hat',
+        '红': 'hung', '弘': 'wang', '虹': 'hung',
+        '吗': 'maa', '妈': 'maa', '嘛': 'maa', '麻': 'maa', '马': 'maa',
+        '他': 'taa', '她': 'taa', '它': 'taa', '塔': 'taap',
+        '的': 'dik', '得': 'dak', '地': 'dei',
+        '了': 'liu', '料': 'liu',
+        '和': 'wo', '河': 'ho', '何': 'ho',
+        '不': 'bat', '布': 'bou',
+        '会': 'wui', '回': 'wui', '惠': 'wai',
+        '把': 'baa', '吧': 'baa', '爸': 'baa',
+        '个': 'go', '哥': 'go', '歌': 'go',
+        '们': 'mun', '门': 'mun', '闷': 'mun',
+        '吃': 'hek', '迟': 'ci',
+        '喝': 'hot', '合': 'hap', '盒': 'hap',
+        '看': 'hon', '刊': 'hon',
+        '说': 'syut', '雪': 'syut',
+        '来': 'loi', '赖': 'laai', '莱': 'loi',
+        '走': 'zau', '奏': 'zau',
+        '给': 'kap', '急': 'gap',
+        '怎': 'zam', '斩': 'zaam',
+        '为': 'wai', '位': 'wai', '围': 'wai',
+        '很': 'han', '恨': 'han', '痕': 'han',
+        '过': 'gwo', '锅': 'wo',
+        '着': 'zoek', '著': 'zoek',
+        '对': 'deoi', '队': 'deoi',
+        '让': 'joeng', '酿': 'joeng',
+        '就': 'zau', '九': 'gau', '旧': 'gau',
+        '还': 'waan', '环': 'waan',
+        '从': 'cung', '丛': 'cung',
+        '被': 'bei', '杯': 'bui', '背': 'bui',
+        '啊': 'aa', '阿': 'aa', '呀': 'aa',
+        '哦': 'o', '噢': 'o',
+        '嗯': 'ng', '唔': 'ng',
+        '那': 'naa', '拿': 'naa', '哪': 'naa',
+        '这': 'ze', '遮': 'ze',
+        '真': 'zan', '珍': 'zan',
+        '长': 'coeng', '场': 'coeng', '常': 'soeng',
+        '没': 'mut', '每': 'mui',
+        '只': 'zi', '指': 'zi', '纸': 'zi',
+        '最': 'zeoi', '嘴': 'zeoi',
+        '但': 'daan', '蛋': 'daan', '单': 'daan',
+        '因': 'jan', '音': 'jam', '饮': 'jam',
+        '所': 'so', '锁': 'so',
+        '能': 'nang', '农': 'nung',
+        '也': 'jaa', '夜': 'je', '爷': 'je',
+        '些': 'se', '写': 'se',
+        '像': 'zoeng', '象': 'zoeng',
+    };
+
+    for (const [char, jyut] of Object.entries(extras)) {
+        if (!map[char]) {
+            map[char] = jyut;
+        }
+    }
+
+    _charJyutpingMap = map;
+    return map;
+}
+
+/**
+ * Convert Chinese text to jyutping syllables using the character map
+ * @param {string} text - Chinese text
+ * @returns {Array} Array of jyutping syllables (unknown chars kept as-is)
+ */
+function textToJyutping(text) {
+    const map = getCharJyutpingMap();
+    const chars = normalized(text);
+    const syllables = [];
+    for (const char of chars) {
+        syllables.push(map[char] || char);
+    }
+    return syllables;
+}
+
+/**
+ * Calculate similarity between two jyutping syllable arrays (0-1)
+ * @param {Array} a - First syllable array
+ * @param {Array} b - Second syllable array
+ * @returns {number} Similarity score 0-1
+ */
+function jyutpingSimilarity(a, b) {
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0) return 0;
+
+    let matches = 0;
+    const minLen = Math.min(a.length, b.length);
+    for (let i = 0; i < minLen; i++) {
+        if (a[i] === b[i]) {
+            matches++;
+        }
+    }
+    return matches / maxLen;
+}
+
+// ==================== SPEECH MATCHING ====================
+
+/**
+ * Check if recognized speech matches a vocabulary item.
+ * Uses multiple strategies: exact match, jyutping match, homophone
+ * lookup, and fuzzy pronunciation comparison (>=80% threshold).
  * @param {string} recognized - What was recognized
  * @param {Object} item - Vocabulary item { chinese, jyutping, english }
  * @returns {boolean}
@@ -886,19 +1019,27 @@ function matchesSpeakingItem(recognized, item) {
 
     // Match against jyutping (with tones)
     if (rLower === jyutping) return true;
-    // Match against jyutping (without tones) - handles "luk" matching "luk6"
+    // Match against jyutping (without tones)
     if (rLower === jyutpingNoTones) return true;
 
     // Match against jyutping syllables for multi-syllable words
-    // e.g., recognized "do ze" should match jyutping "do1 ze6"
     const rNoTones = stripTones(rLower);
     const jyutpingSyllables = jyutpingNoTones.replace(/\s+/g, '');
     const rSyllables = rNoTones.replace(/\s+/g, '');
     if (rSyllables && jyutpingSyllables && rSyllables === jyutpingSyllables) return true;
 
     // Phonetic similarity: recognized English-like text matches jyutping sounds
-    // e.g., "look" sounds like "luk", "see" sounds like "si"
     if (rLower && jyutpingNoTones && phoneticMatch(rLower, jyutpingNoTones)) return true;
+
+    // Fuzzy pronunciation comparison via character→jyutping map
+    // Converts recognized characters to jyutping and compares with expected
+    // Accepts >=80% syllable match (handles homophones like 蝦/哈, 熊/紅)
+    if (r && jyutpingNoTones) {
+        const recognizedJyutping = textToJyutping(recognized);
+        const expectedJyutping = jyutpingNoTones.split(/\s+/);
+        const similarity = jyutpingSimilarity(recognizedJyutping, expectedJyutping);
+        if (similarity >= 0.8) return true;
+    }
 
     // Match against English meaning (if recognition fell back to English)
     if (rLower === english) return true;

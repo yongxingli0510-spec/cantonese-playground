@@ -680,7 +680,9 @@ function showQuizSpeakingError(testId, message) {
 // ==================== QUIZ AUDIO VISUALIZER ====================
 
 /**
- * Start audio visualizer for quiz speaking question (prefixed element IDs)
+ * Start audio visualizer for quiz speaking question.
+ * Uses animated bars only (no getUserMedia) to avoid mic conflicts
+ * with SpeechRecognition on mobile devices.
  */
 function startQuizAudioVisualizer(testId) {
     const vizContainer = document.getElementById(`${testId}VizContainer`);
@@ -697,65 +699,17 @@ function startQuizAudioVisualizer(testId) {
         barsContainer.appendChild(bar);
     }
 
-    // Audio analyser
-    try {
-        if (!UnifiedTest._quizAudioCtx) {
-            UnifiedTest._quizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Animated waveform (no mic access — let SpeechRecognition have exclusive mic)
+    const bars = barsContainer.children;
+    function draw() {
+        if (!UnifiedTest._quizRecording) return;
+        UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
+        for (let i = 0; i < BAR_COUNT && i < bars.length; i++) {
+            const centerWeight = 1 - Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+            bars[i].style.height = Math.max(4, (Math.random() * 30 + 10) * (0.5 + centerWeight * 0.5)) + 'px';
         }
-        if (UnifiedTest._quizAudioCtx.state === 'suspended') {
-            UnifiedTest._quizAudioCtx.resume();
-        }
-
-        const connectAnalyser = function(stream) {
-            const analyser = UnifiedTest._quizAudioCtx.createAnalyser();
-            analyser.fftSize = 64;
-            analyser.smoothingTimeConstant = 0.6;
-            const source = UnifiedTest._quizAudioCtx.createMediaStreamSource(stream);
-            source.connect(analyser);
-            UnifiedTest._quizAnalyser = analyser;
-            UnifiedTest._quizVizSource = source;
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const bars = barsContainer.children;
-            function draw() {
-                if (!UnifiedTest._quizRecording) return;
-                UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
-                analyser.getByteFrequencyData(dataArray);
-                const step = Math.floor(dataArray.length / BAR_COUNT) || 1;
-                for (let i = 0; i < BAR_COUNT && i < bars.length; i++) {
-                    const val = dataArray[i * step] || 0;
-                    bars[i].style.height = Math.max(4, (val / 255) * 48) + 'px';
-                }
-            }
-            UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
-        };
-
-        if (typeof SpeakingPractice !== 'undefined' && SpeakingPractice.mediaStream && SpeakingPractice.mediaStream.active) {
-            connectAnalyser(SpeakingPractice.mediaStream);
-        } else {
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-                if (typeof SpeakingPractice !== 'undefined') {
-                    SpeakingPractice.mediaStream = stream;
-                    SpeakingPractice.micPermissionGranted = true;
-                }
-                connectAnalyser(stream);
-            }).catch(function() {
-                // Fallback animation
-                const bars = barsContainer.children;
-                function draw() {
-                    if (!UnifiedTest._quizRecording) return;
-                    UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
-                    for (let i = 0; i < BAR_COUNT && i < bars.length; i++) {
-                        const centerWeight = 1 - Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
-                        bars[i].style.height = Math.max(4, (Math.random() * 30 + 10) * (0.5 + centerWeight * 0.5)) + 'px';
-                    }
-                }
-                UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
-            });
-        }
-    } catch (e) {
-        // Fallback
     }
+    UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
 
     // Countdown timer
     UnifiedTest._quizCountdownStart = Date.now();
@@ -789,11 +743,6 @@ function stopQuizAudioVisualizer(testId) {
         clearInterval(UnifiedTest._quizCountdownInterval);
         UnifiedTest._quizCountdownInterval = null;
     }
-    if (UnifiedTest._quizVizSource) {
-        try { UnifiedTest._quizVizSource.disconnect(); } catch (e) { /* ignore */ }
-        UnifiedTest._quizVizSource = null;
-    }
-    UnifiedTest._quizAnalyser = null;
 
     const vizContainer = document.getElementById(`${testId}VizContainer`);
     if (vizContainer) vizContainer.style.display = 'none';
