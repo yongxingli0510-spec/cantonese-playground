@@ -229,7 +229,6 @@
                             <button class="submenu-item" onclick="switchTab('test3'); closeMainMenu();">🗣️ Test 3: Jyutping 粵拼</button>
                             <button class="submenu-item" onclick="switchTab('test4'); closeMainMenu();">🔗 Test 4: Connections 連接詞</button>
                             <button class="submenu-item" onclick="switchTab('test5'); closeMainMenu();">💬 Test 5: Sentences 句子</button>
-                            <button class="submenu-item" onclick="switchTab('test6'); closeMainMenu();">🎤 Test 6: Speaking 說話</button>
                             <div style="border-top: 1px solid #eee; margin: 5px 0;"></div>
                             <button class="submenu-item" style="color: #4CAF50; font-weight: bold;" onclick="switchTab('beginnerTest'); closeMainMenu();">🌱 Beginning Test</button>
                             <button class="submenu-item" style="color: #FF9800; font-weight: bold;" onclick="switchTab('intermediateTest'); closeMainMenu();">🌿 Intermediate Test</button>
@@ -9943,20 +9942,6 @@
             </div>
         </div>
 
-        <!-- Test 6: Speaking Tab -->
-        <div id="test6" class="content">
-            <div class="game-container">
-                <div id="test6SectionSelect">
-                    <h2 class="game-title">🎤 Test 6: Speaking 說話</h2>
-                    <p style="text-align: center; color: var(--text-muted); margin-bottom: 20px;">Practice your Cantonese pronunciation!</p>
-                    <div id="test6Sections" style="display: grid; gap: 12px; max-width: 700px; margin: 0 auto;"></div>
-                </div>
-                <div id="test6Quiz" style="display: none;">
-                    <div id="test6Content"></div>
-                </div>
-            </div>
-        </div>
-
         <!-- Speaking Practice Modal -->
         <div id="speakingModal" class="modal" style="display: none;">
             <div class="modal-content" style="max-width: 500px;">
@@ -9984,6 +9969,7 @@
     <script src="js/navigation.js"></script>
     <script src="js/profile.js"></script>
     <script src="js/quiz.js"></script>
+    <script src="js/leveled-tests.js"></script>
 
     <!-- Feature modules -->
     <script src="js/speaking.js"></script>

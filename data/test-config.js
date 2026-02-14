@@ -95,7 +95,8 @@ const testConfig = {
             fill_chinese: 6,      // 30%
             select_picture: 5,     // 25%
             match_translation: 5,  // 25%
-            audio_identify: 4      // 20%
+            audio_identify: 2,     // 10%
+            speaking: 2            // 10%
         }
     },
 
@@ -142,7 +143,8 @@ const testConfig = {
             fill_chinese: 6,       // 30%
             select_picture: 5,      // 25%
             match_translation: 5,   // 25%
-            audio_identify: 4       // 20%
+            audio_identify: 2,      // 10%
+            speaking: 2             // 10%
         }
     },
 
@@ -314,7 +316,8 @@ const testConfig = {
         questionDistribution: {
             fill_chinese: 7,       // 35%
             word_order: 7,         // 35%
-            audio_identify: 6      // 30%
+            audio_identify: 4,     // 20%
+            speaking: 2            // 10%
         }
     }
 };
@@ -363,6 +366,13 @@ const questionTypes = {
         chineseName: '聽音辨字',
         description: 'Listen to audio and identify the word',
         icon: '🔊'
+    },
+    speaking: {
+        id: 'speaking',
+        name: 'Speaking',
+        chineseName: '說話',
+        description: 'Say the word in Cantonese',
+        icon: '🎤'
     }
 };
 

@@ -20,12 +20,16 @@ const SpeakingPractice = {
     recognition: null,
     mediaStream: null,
     isRecording: false,
-    isTestMode: false,
-    currentTestId: null,
-    currentSectionId: null,
     autoStopTimer: null,
     micPermissionGranted: false,
-    touchActive: false
+    touchActive: false,
+    useFallbackLang: false,
+    // Audio visualizer state
+    audioContext: null,
+    analyser: null,
+    visualizerRAF: null,
+    countdownInterval: null,
+    recordingStartTime: 0
 };
 
 // ==================== SPEECH RECOGNITION ====================
@@ -42,8 +46,8 @@ function createSpeechRecognition() {
 
     const recognition = new SpeechRecognition();
     // yue-Hant-HK is the correct BCP 47 code for Cantonese speech recognition
-    // zh-HK defaults to Mandarin on most systems
-    recognition.lang = 'yue-Hant-HK';
+    // but it may not work on desktop Chrome (network error), so fall back to zh-HK
+    recognition.lang = SpeakingPractice.useFallbackLang ? 'zh-HK' : 'yue-Hant-HK';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
@@ -71,10 +75,16 @@ function createSpeechRecognition() {
     };
 
     recognition.onerror = function(event) {
-        console.warn('Speech recognition error:', event.error);
+        console.warn('Speech recognition error:', event.error, 'lang:', recognition.lang);
         stopRecordingInternal();
 
-        if (event.error === 'no-speech') {
+        if (event.error === 'network' && !SpeakingPractice.useFallbackLang) {
+            // yue-Hant-HK not supported on this device/browser, fall back to zh-HK
+            console.log('Falling back to zh-HK for speech recognition');
+            SpeakingPractice.useFallbackLang = true;
+            SpeakingPractice.recognition = null;
+            showSpeakingError('Switching to compatible speech mode. Please try again.');
+        } else if (event.error === 'no-speech') {
             showSpeakingError('No speech detected. Please try again.');
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             showSpeakingError('Microphone access denied. Please allow microphone access and use HTTPS.');
@@ -190,7 +200,6 @@ async function startSpeakingPractice(category) {
         return;
     }
 
-    SpeakingPractice.isTestMode = false;
     SpeakingPractice.currentCategory = category;
     SpeakingPractice.currentItems = shuffleArray([...vocabularyData[category]]);
     SpeakingPractice.currentIndex = 0;
@@ -216,61 +225,6 @@ function showSpeakingModal(html) {
     }
 }
 
-/**
- * Start speaking test from Test 6 section
- * @param {string} sectionId - Section ID from test config
- */
-async function startSpeakingTest(sectionId) {
-    const test = testConfig && testConfig.test6;
-    if (!test) {
-        console.error('Test 6 config not found');
-        return;
-    }
-
-    const section = test.sections.find(s => s.id === sectionId);
-    if (!section) {
-        console.error('Section not found:', sectionId);
-        return;
-    }
-
-    if (!isSpeechRecognitionAvailable()) {
-        document.getElementById('test6Quiz').style.display = 'block';
-        document.getElementById('test6SectionSelect').style.display = 'none';
-        document.getElementById('test6Content').innerHTML = `
-            <div style="text-align: center; padding: 30px;">
-                <div style="font-size: 3rem; margin-bottom: 15px;">🗣️</div>
-                <h3 style="color: var(--text); margin-bottom: 10px;">Speech Recognition Not Supported</h3>
-                <p style="color: var(--text-muted); margin-bottom: 20px;">Please use Google Chrome for the best experience.</p>
-                <button class="next-btn" onclick="backToTest6Sections()">Back</button>
-            </div>
-        `;
-        return;
-    }
-
-    SpeakingPractice.isTestMode = true;
-    SpeakingPractice.currentTestId = 'test6';
-    SpeakingPractice.currentSectionId = sectionId;
-    SpeakingPractice.score = 0;
-    SpeakingPractice.totalAttempted = 0;
-
-    // Gather vocabulary from section categories
-    let items = [];
-    section.categories.forEach(cat => {
-        if (vocabularyData[cat]) {
-            items = items.concat(vocabularyData[cat]);
-        }
-    });
-
-    SpeakingPractice.currentItems = shuffleArray(items).slice(0, section.questionCount || 10);
-    SpeakingPractice.currentIndex = 0;
-
-    // Show test quiz area
-    document.getElementById('test6SectionSelect').style.display = 'none';
-    const quizArea = document.getElementById('test6Quiz');
-    quizArea.style.display = 'block';
-
-    renderSpeakingPrompt();
-}
 
 // ==================== UI RENDERING ====================
 
@@ -286,10 +240,7 @@ function renderSpeakingPrompt() {
 
     const total = SpeakingPractice.currentItems.length;
     const current = SpeakingPractice.currentIndex + 1;
-    const container = SpeakingPractice.isTestMode
-        ? document.getElementById('test6Content')
-        : document.getElementById('speakingContent');
-
+    const container = document.getElementById('speakingContent');
     if (!container) return;
 
     const progressHTML = `
@@ -323,6 +274,13 @@ function renderSpeakingPrompt() {
                 </button>
             </div>
             <div style="margin-top: 10px;">
+                <div id="vizContainer" style="display: none; margin: 0 auto 12px; max-width: 300px;">
+                    <div id="waveformBars" style="display: flex; align-items: center; justify-content: center; height: 50px; gap: 3px;"></div>
+                    <div style="margin-top: 8px; position: relative; height: 4px; background: rgba(229,62,62,0.15); border-radius: 2px; overflow: hidden;">
+                        <div id="countdownBar" style="height: 100%; width: 100%; background: linear-gradient(90deg, #f56565, #e53e3e); border-radius: 2px; transition: width 0.1s linear;"></div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;" id="countdownText">8s</p>
+                </div>
                 <button class="mic-btn" id="micBtn">
                     🎤
                 </button>
@@ -364,10 +322,7 @@ function showSpeakingResult(recognized, expected) {
         }
     }
 
-    const container = SpeakingPractice.isTestMode
-        ? document.getElementById('test6Content')
-        : document.getElementById('speakingContent');
-
+    const container = document.getElementById('speakingContent');
     if (!container) return;
 
     const total = SpeakingPractice.currentItems.length;
@@ -447,10 +402,7 @@ function showSpeakingError(message) {
  * Show completion screen
  */
 function showSpeakingComplete() {
-    const container = SpeakingPractice.isTestMode
-        ? document.getElementById('test6Content')
-        : document.getElementById('speakingContent');
-
+    const container = document.getElementById('speakingContent');
     if (!container) return;
 
     const score = SpeakingPractice.score;
@@ -468,10 +420,6 @@ function showSpeakingComplete() {
         showCelebration('🎉');
     }
 
-    if (typeof trackTestScore === 'function' && SpeakingPractice.isTestMode) {
-        trackTestScore('speaking', score, total);
-    }
-
     container.innerHTML = `
         <div style="text-align: center; padding: 20px;">
             <div style="font-size: 4rem; margin-bottom: 15px;">${emoji}</div>
@@ -483,18 +431,12 @@ function showSpeakingComplete() {
                 ${percentage}% correct
             </div>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                ${SpeakingPractice.isTestMode ? `
-                    <button class="next-btn" onclick="backToTest6Sections()" style="padding: 12px 30px;">
-                        📋 Back to Sections
-                    </button>
-                ` : `
-                    <button class="next-btn" onclick="restartSpeakingPractice()" style="padding: 12px 30px; background: linear-gradient(135deg, #ed8936, #dd6b20);">
-                        🔄 Try Again
-                    </button>
-                    <button class="next-btn" onclick="closeSpeakingPractice()" style="padding: 12px 30px;">
-                        ✅ Done
-                    </button>
-                `}
+                <button class="next-btn" onclick="restartSpeakingPractice()" style="padding: 12px 30px; background: linear-gradient(135deg, #ed8936, #dd6b20);">
+                    🔄 Try Again
+                </button>
+                <button class="next-btn" onclick="closeSpeakingPractice()" style="padding: 12px 30px;">
+                    ✅ Done
+                </button>
             </div>
         </div>
     `;
@@ -521,7 +463,10 @@ function startRecording() {
         micHint.textContent = 'Listening... tap to stop';
     }
 
-    // Reuse existing SpeechRecognition instance to avoid repeated permission prompts.
+    // Start audio visualizer
+    startAudioVisualizer();
+
+    // Create a fresh instance if needed (e.g., after language fallback)
     if (!SpeakingPractice.recognition) {
         SpeakingPractice.recognition = createSpeechRecognition();
     }
@@ -560,6 +505,9 @@ function stopRecording() {
         SpeakingPractice.autoStopTimer = null;
     }
 
+    // Stop visualizer
+    stopAudioVisualizer();
+
     // Visual feedback
     const micBtn = document.getElementById('micBtn');
     if (micBtn) {
@@ -593,6 +541,9 @@ function stopRecordingInternal() {
         clearTimeout(SpeakingPractice.autoStopTimer);
         SpeakingPractice.autoStopTimer = null;
     }
+
+    // Stop visualizer
+    stopAudioVisualizer();
 
     // Visual feedback
     const micBtn = document.getElementById('micBtn');
@@ -676,14 +627,172 @@ function closeSpeakingPractice() {
     cleanupSpeaking();
 }
 
+// ==================== AUDIO VISUALIZER ====================
+
 /**
- * Go back to Test 6 section selection
+ * Start the real-time audio waveform visualizer and countdown timer
  */
-function backToTest6Sections() {
-    cleanupSpeaking();
-    document.getElementById('test6Quiz').style.display = 'none';
-    document.getElementById('test6SectionSelect').style.display = 'block';
+function startAudioVisualizer() {
+    const vizContainer = document.getElementById('vizContainer');
+    const barsContainer = document.getElementById('waveformBars');
+    if (!vizContainer || !barsContainer) return;
+
+    // Show visualizer
+    vizContainer.style.display = 'block';
+
+    // Create waveform bars
+    const BAR_COUNT = 20;
+    barsContainer.innerHTML = '';
+    for (let i = 0; i < BAR_COUNT; i++) {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'width: 8px; min-height: 4px; height: 4px; background: linear-gradient(180deg, #f56565, #e53e3e); border-radius: 4px; transition: height 0.05s ease;';
+        bar.dataset.index = i;
+        barsContainer.appendChild(bar);
+    }
+
+    // Set up Web Audio API analyser
+    try {
+        if (!SpeakingPractice.audioContext) {
+            SpeakingPractice.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        // Resume if suspended (browser autoplay policy)
+        if (SpeakingPractice.audioContext.state === 'suspended') {
+            SpeakingPractice.audioContext.resume();
+        }
+
+        // Get mic stream - request if we don't have one
+        const connectAnalyser = function(stream) {
+            const analyser = SpeakingPractice.audioContext.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.6;
+
+            const source = SpeakingPractice.audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            SpeakingPractice.analyser = analyser;
+            SpeakingPractice._vizSource = source;
+
+            // Start animation loop
+            animateWaveform(barsContainer, analyser, BAR_COUNT);
+        };
+
+        if (SpeakingPractice.mediaStream && SpeakingPractice.mediaStream.active) {
+            connectAnalyser(SpeakingPractice.mediaStream);
+        } else {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                SpeakingPractice.mediaStream = stream;
+                SpeakingPractice.micPermissionGranted = true;
+                connectAnalyser(stream);
+            }).catch(function() {
+                // Fallback: animate with random values
+                animateWaveformFallback(barsContainer, BAR_COUNT);
+            });
+        }
+    } catch (e) {
+        // Web Audio API not supported, use fallback animation
+        animateWaveformFallback(barsContainer, BAR_COUNT);
+    }
+
+    // Start countdown timer
+    SpeakingPractice.recordingStartTime = Date.now();
+    const DURATION = 8000;
+    SpeakingPractice.countdownInterval = setInterval(function() {
+        const elapsed = Date.now() - SpeakingPractice.recordingStartTime;
+        const remaining = Math.max(0, DURATION - elapsed);
+        const pct = (remaining / DURATION) * 100;
+
+        const bar = document.getElementById('countdownBar');
+        if (bar) bar.style.width = pct + '%';
+
+        const text = document.getElementById('countdownText');
+        if (text) text.textContent = Math.ceil(remaining / 1000) + 's';
+
+        if (remaining <= 0) {
+            clearInterval(SpeakingPractice.countdownInterval);
+            SpeakingPractice.countdownInterval = null;
+        }
+    }, 100);
 }
+
+/**
+ * Animate waveform bars using real microphone data
+ */
+function animateWaveform(container, analyser, barCount) {
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const bars = container.children;
+
+    function draw() {
+        if (!SpeakingPractice.isRecording) return;
+
+        SpeakingPractice.visualizerRAF = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+
+        // Map frequency data to bars
+        const step = Math.floor(dataArray.length / barCount) || 1;
+        for (let i = 0; i < barCount && i < bars.length; i++) {
+            const val = dataArray[i * step] || 0;
+            // Scale: min 4px, max 48px
+            const height = Math.max(4, (val / 255) * 48);
+            bars[i].style.height = height + 'px';
+            // Color intensity based on volume
+            const intensity = Math.round(100 + (val / 255) * 155);
+            bars[i].style.background = 'linear-gradient(180deg, rgb(245,' + (100 - val/5) + ',' + (100 - val/5) + '), rgb(229,' + (62 - val/10) + ',' + (62 - val/10) + '))';
+        }
+    }
+
+    SpeakingPractice.visualizerRAF = requestAnimationFrame(draw);
+}
+
+/**
+ * Fallback waveform animation when Web Audio API is unavailable
+ */
+function animateWaveformFallback(container, barCount) {
+    const bars = container.children;
+
+    function draw() {
+        if (!SpeakingPractice.isRecording) return;
+
+        SpeakingPractice.visualizerRAF = requestAnimationFrame(draw);
+
+        for (let i = 0; i < barCount && i < bars.length; i++) {
+            // Generate smooth random heights with center emphasis
+            const centerWeight = 1 - Math.abs(i - barCount / 2) / (barCount / 2);
+            const height = Math.max(4, (Math.random() * 30 + 10) * (0.5 + centerWeight * 0.5));
+            bars[i].style.height = height + 'px';
+        }
+    }
+
+    SpeakingPractice.visualizerRAF = requestAnimationFrame(draw);
+}
+
+/**
+ * Stop the audio visualizer and countdown
+ */
+function stopAudioVisualizer() {
+    // Stop animation
+    if (SpeakingPractice.visualizerRAF) {
+        cancelAnimationFrame(SpeakingPractice.visualizerRAF);
+        SpeakingPractice.visualizerRAF = null;
+    }
+
+    // Stop countdown
+    if (SpeakingPractice.countdownInterval) {
+        clearInterval(SpeakingPractice.countdownInterval);
+        SpeakingPractice.countdownInterval = null;
+    }
+
+    // Disconnect analyser source
+    if (SpeakingPractice._vizSource) {
+        try { SpeakingPractice._vizSource.disconnect(); } catch (e) { /* ignore */ }
+        SpeakingPractice._vizSource = null;
+    }
+    SpeakingPractice.analyser = null;
+
+    // Hide visualizer
+    const vizContainer = document.getElementById('vizContainer');
+    if (vizContainer) vizContainer.style.display = 'none';
+}
+
+// ==================== CLEANUP ====================
 
 /**
  * Clean up recording resources
@@ -691,6 +800,9 @@ function backToTest6Sections() {
 function cleanupSpeaking() {
     SpeakingPractice.isRecording = false;
     SpeakingPractice.touchActive = false;
+
+    // Stop visualizer
+    stopAudioVisualizer();
 
     if (SpeakingPractice.autoStopTimer) {
         clearTimeout(SpeakingPractice.autoStopTimer);
@@ -720,26 +832,6 @@ function cleanupSpeaking() {
 
     SpeakingPractice.recordedBlob = null;
     SpeakingPractice.audioChunks = [];
-}
-
-// ==================== TEST 6 INITIALIZATION ====================
-
-/**
- * Initialize Test 6 section selection UI
- */
-function initSpeakingTest() {
-    const test = testConfig && testConfig.test6;
-    if (!test) return;
-
-    const sectionsContainer = document.getElementById('test6Sections');
-    if (!sectionsContainer) return;
-
-    sectionsContainer.innerHTML = test.sections.map(section => `
-        <button class="next-btn section-btn" onclick="startSpeakingTest('${section.id}')" style="text-align: left;">
-            ${section.icon} ${section.name}
-            <span style="display: block; font-size: 0.85rem; opacity: 0.8;">${section.chineseName}</span>
-        </button>
-    `).join('');
 }
 
 // ==================== HELPERS ====================
@@ -893,170 +985,10 @@ function shuffleArray(array) {
     return array;
 }
 
-// ==================== TEST 6 CONFIG ====================
-
-// Add test6 to testConfig when this script loads
-if (typeof testConfig !== 'undefined') {
-    testConfig.test6 = {
-        id: 'test6',
-        name: 'Speaking',
-        chineseName: '說話',
-        icon: '🎤',
-        description: 'Practice your Cantonese pronunciation!',
-        sections: [
-            {
-                id: '6.1',
-                name: 'Greetings & Manners',
-                chineseName: '禮貌與問候',
-                icon: '🙏',
-                categories: ['manners'],
-                questionCount: 8
-            },
-            {
-                id: '6.2',
-                name: 'Numbers',
-                chineseName: '數字',
-                icon: '🔢',
-                categories: ['numbers'],
-                questionCount: 10
-            },
-            {
-                id: '6.3',
-                name: 'Animals',
-                chineseName: '動物',
-                icon: '🐾',
-                categories: ['animals'],
-                questionCount: 10
-            },
-            {
-                id: '6.4',
-                name: 'Colors',
-                chineseName: '顏色',
-                icon: '🌈',
-                categories: ['colors'],
-                questionCount: 10
-            },
-            {
-                id: '6.5',
-                name: 'Food & Drink',
-                chineseName: '食物',
-                icon: '🍜',
-                categories: ['foods'],
-                questionCount: 10
-            },
-            {
-                id: '6.6',
-                name: 'Family',
-                chineseName: '家庭',
-                icon: '👨‍👩‍👧‍👦',
-                categories: ['family'],
-                questionCount: 10
-            },
-            {
-                id: '6.7',
-                name: 'Weather',
-                chineseName: '天氣',
-                icon: '🌤️',
-                categories: ['weather'],
-                questionCount: 10
-            },
-            {
-                id: '6.8',
-                name: 'Clothing',
-                chineseName: '衫褲',
-                icon: '👕',
-                categories: ['clothing'],
-                questionCount: 10
-            },
-            {
-                id: '6.9',
-                name: 'Sports',
-                chineseName: '運動',
-                icon: '⚽',
-                categories: ['sports'],
-                questionCount: 10
-            },
-            {
-                id: '6.10',
-                name: 'Body Parts',
-                chineseName: '身體',
-                icon: '👤',
-                categories: ['body'],
-                questionCount: 10
-            },
-            {
-                id: '6.11',
-                name: 'Places',
-                chineseName: '地方',
-                icon: '📍',
-                categories: ['places'],
-                questionCount: 10
-            },
-            {
-                id: '6.12',
-                name: 'Occupations',
-                chineseName: '職業',
-                icon: '💼',
-                categories: ['occupations'],
-                questionCount: 10
-            },
-            {
-                id: '6.13',
-                name: 'Hobbies',
-                chineseName: '興趣',
-                icon: '🎭',
-                categories: ['hobbies'],
-                questionCount: 10
-            },
-            {
-                id: '6.14',
-                name: 'Daily Activities',
-                chineseName: '日常',
-                icon: '🌅',
-                categories: ['dailyactivities'],
-                questionCount: 10
-            },
-            {
-                id: '6.15',
-                name: 'Transport',
-                chineseName: '交通',
-                icon: '🚌',
-                categories: ['transport'],
-                questionCount: 10
-            },
-            {
-                id: '6.16',
-                name: 'Emotions',
-                chineseName: '情緒',
-                icon: '😊',
-                categories: ['emotions'],
-                questionCount: 10
-            },
-            {
-                id: '6.17',
-                name: 'Nature',
-                chineseName: '大自然',
-                icon: '🌿',
-                categories: ['nature'],
-                questionCount: 10
-            },
-            {
-                id: '6.18',
-                name: 'Holidays',
-                chineseName: '節日',
-                icon: '🎉',
-                categories: ['lunarnewyear', 'easter', 'dragonboat', 'canadaday', 'midautumn', 'thanksgiving', 'halloween', 'christmas'],
-                questionCount: 10
-            }
-        ]
-    };
-}
-
 // ==================== EXPORTS ====================
 
 window.SpeakingPractice = SpeakingPractice;
 window.startSpeakingPractice = startSpeakingPractice;
-window.startSpeakingTest = startSpeakingTest;
 window.closeSpeakingPractice = closeSpeakingPractice;
 window.startRecording = startRecording;
 window.stopRecording = stopRecording;
@@ -1065,5 +997,5 @@ window.playRecording = playRecording;
 window.nextSpeakingPrompt = nextSpeakingPrompt;
 window.retrySpeakingPrompt = retrySpeakingPrompt;
 window.restartSpeakingPractice = restartSpeakingPractice;
-window.backToTest6Sections = backToTest6Sections;
-window.initSpeakingTest = initSpeakingTest;
+window.isSpeechRecognitionAvailable = isSpeechRecognitionAvailable;
+window.matchesSpeakingItem = matchesSpeakingItem;

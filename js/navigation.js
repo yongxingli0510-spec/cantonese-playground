@@ -253,14 +253,6 @@ function initTabContent(tabName) {
         return;
     }
 
-    // Initialize speaking test (test6)
-    if (tabName === 'test6') {
-        if (typeof initSpeakingTest === 'function') {
-            initSpeakingTest();
-        }
-        return;
-    }
-
     // Legacy test initialization
     if (tabName === 'test') {
         if (typeof initTest === 'function') {

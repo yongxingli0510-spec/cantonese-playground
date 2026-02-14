@@ -269,6 +269,9 @@ function renderQuestion(testId, question) {
         case 'audio_identify':
             renderAudioIdentify(container, question, testId);
             break;
+        case 'speaking':
+            renderSpeaking(container, question, testId);
+            break;
         default:
             console.error('Unknown question type:', question.type);
             renderFillChinese(container, question, testId);
@@ -383,6 +386,402 @@ function renderAudioIdentify(container, question, testId) {
     setTimeout(() => playQuestionAudio(question.audio_text), 500);
 
     renderOptions(testId, question.options, question.answer);
+}
+
+/**
+ * Render speaking question
+ */
+function renderSpeaking(container, question, testId) {
+    // Hide the confirm button — speaking auto-advances
+    const confirmBtn = document.getElementById(`${testId}ConfirmBtn`);
+    if (confirmBtn) confirmBtn.style.display = 'none';
+
+    const escapedChinese = escapeHtml(question.chinese);
+
+    container.innerHTML = `
+        <div class="speaking-prompt-card" style="text-align: center; padding: 20px;">
+            <div style="font-size: 4rem; margin-bottom: 10px;">${question.picture}</div>
+            <div style="font-size: 2.5rem; font-weight: 700; color: var(--text); margin-bottom: 8px;">${question.chinese}</div>
+            <div style="font-size: 1rem; color: var(--text-muted); margin-bottom: 5px;">${question.english}</div>
+            <button class="jyutping-reveal" onclick="this.querySelector('.jyutping-text').style.display='inline'; this.querySelector('.jyutping-hint').style.display='none';">
+                <span class="jyutping-hint">👁 Show Jyutping</span>
+                <span class="jyutping-text" style="display: none;">${question.jyutping}</span>
+            </button>
+            <div style="margin-top: 15px;">
+                <button class="next-btn" onclick="playQuestionAudio('${escapedChinese}')" style="padding: 10px 25px; font-size: 1rem; margin-bottom: 15px; background: linear-gradient(135deg, #48bb78, #38a169);">
+                    🔊 Listen
+                </button>
+            </div>
+            <div style="margin-top: 10px;">
+                <div id="${testId}VizContainer" style="display: none; margin: 0 auto 12px; max-width: 300px;">
+                    <div id="${testId}WaveformBars" style="display: flex; align-items: center; justify-content: center; height: 50px; gap: 3px;"></div>
+                    <div style="margin-top: 8px; position: relative; height: 4px; background: rgba(229,62,62,0.15); border-radius: 2px; overflow: hidden;">
+                        <div id="${testId}CountdownBar" style="height: 100%; width: 100%; background: linear-gradient(90deg, #f56565, #e53e3e); border-radius: 2px; transition: width 0.1s linear;"></div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;" id="${testId}CountdownText">8s</p>
+                </div>
+                <button class="mic-btn" id="${testId}MicBtn">
+                    🎤
+                </button>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 8px;" id="${testId}MicHint">Tap to speak</p>
+            </div>
+            <div id="${testId}SpeakingResult" style="display: none; margin-top: 15px;"></div>
+        </div>
+    `;
+
+    // Wire up mic button
+    const micBtn = document.getElementById(`${testId}MicBtn`);
+    if (micBtn) {
+        micBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (UnifiedTest._quizRecording) {
+                stopQuizRecording(testId);
+            } else {
+                startQuizSpeakingRecognition(testId);
+            }
+        });
+    }
+}
+
+// ==================== QUIZ SPEAKING RECOGNITION ====================
+
+/**
+ * Start speech recognition for a quiz speaking question
+ */
+function startQuizSpeakingRecognition(testId) {
+    if (UnifiedTest._quizRecording || UnifiedTest.isAnswered) return;
+
+    UnifiedTest._quizRecording = true;
+
+    const micBtn = document.getElementById(`${testId}MicBtn`);
+    if (micBtn) micBtn.classList.add('recording');
+    const micHint = document.getElementById(`${testId}MicHint`);
+    if (micHint) micHint.textContent = 'Listening... tap to stop';
+
+    // Start visualizer with testId prefix
+    startQuizAudioVisualizer(testId);
+
+    // Create speech recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        showQuizSpeakingError(testId, 'Speech recognition not supported.');
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = (typeof SpeakingPractice !== 'undefined' && SpeakingPractice.useFallbackLang) ? 'zh-HK' : 'yue-Hant-HK';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 5;
+
+    UnifiedTest._quizRecognition = recognition;
+
+    recognition.onresult = function(event) {
+        const results = event.results[0];
+        let recognized = results[0].transcript.trim();
+
+        const question = UnifiedTest.questions[UnifiedTest.currentQuestionIndex];
+        const item = question.speakingItem;
+
+        // Check all alternatives
+        for (let i = 0; i < results.length; i++) {
+            const alt = results[i].transcript.trim();
+            if (typeof matchesSpeakingItem === 'function' && matchesSpeakingItem(alt, item)) {
+                recognized = alt;
+                break;
+            }
+        }
+
+        stopQuizRecordingInternal(testId);
+        handleQuizSpeakingResult(testId, recognized);
+    };
+
+    recognition.onerror = function(event) {
+        console.warn('Quiz speech recognition error:', event.error);
+        stopQuizRecordingInternal(testId);
+
+        if (event.error === 'network' && typeof SpeakingPractice !== 'undefined' && !SpeakingPractice.useFallbackLang) {
+            SpeakingPractice.useFallbackLang = true;
+            showQuizSpeakingError(testId, 'Switching to compatible speech mode. Please try again.');
+        } else if (event.error === 'no-speech') {
+            showQuizSpeakingError(testId, 'No speech detected. Please try again.');
+        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            showQuizSpeakingError(testId, 'Microphone access denied. Please allow microphone access.');
+        } else if (event.error === 'aborted') {
+            // User-initiated abort
+        } else {
+            showQuizSpeakingError(testId, 'Could not recognize speech. Please try again.');
+        }
+    };
+
+    recognition.onend = function() {
+        if (UnifiedTest._quizRecording) {
+            stopQuizRecordingInternal(testId);
+            showQuizSpeakingError(testId, 'No speech detected. Please try again.');
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.warn('Recognition start error:', e);
+        stopQuizRecordingInternal(testId);
+    }
+
+    // Auto-stop after 8 seconds
+    UnifiedTest._quizAutoStop = setTimeout(() => {
+        stopQuizRecording(testId);
+    }, 8000);
+}
+
+/**
+ * Stop quiz recording (user-initiated)
+ */
+function stopQuizRecording(testId) {
+    if (!UnifiedTest._quizRecording) return;
+
+    if (UnifiedTest._quizAutoStop) {
+        clearTimeout(UnifiedTest._quizAutoStop);
+        UnifiedTest._quizAutoStop = null;
+    }
+
+    stopQuizAudioVisualizer(testId);
+
+    const micBtn = document.getElementById(`${testId}MicBtn`);
+    if (micBtn) micBtn.classList.remove('recording');
+    const micHint = document.getElementById(`${testId}MicHint`);
+    if (micHint) micHint.textContent = 'Tap to speak';
+
+    if (UnifiedTest._quizRecognition) {
+        try { UnifiedTest._quizRecognition.stop(); } catch (e) { UnifiedTest._quizRecording = false; }
+    } else {
+        UnifiedTest._quizRecording = false;
+    }
+}
+
+/**
+ * Internal stop (called from recognition callbacks)
+ */
+function stopQuizRecordingInternal(testId) {
+    UnifiedTest._quizRecording = false;
+
+    if (UnifiedTest._quizAutoStop) {
+        clearTimeout(UnifiedTest._quizAutoStop);
+        UnifiedTest._quizAutoStop = null;
+    }
+
+    stopQuizAudioVisualizer(testId);
+
+    const micBtn = document.getElementById(`${testId}MicBtn`);
+    if (micBtn) micBtn.classList.remove('recording');
+    const micHint = document.getElementById(`${testId}MicHint`);
+    if (micHint) micHint.textContent = 'Tap to speak';
+}
+
+/**
+ * Handle quiz speaking result
+ */
+function handleQuizSpeakingResult(testId, recognized) {
+    const question = UnifiedTest.questions[UnifiedTest.currentQuestionIndex];
+    const item = question.speakingItem;
+    const isCorrect = typeof matchesSpeakingItem === 'function' && matchesSpeakingItem(recognized, item);
+
+    UnifiedTest.isAnswered = true;
+
+    // Store answer
+    UnifiedTest.userAnswers.push({
+        questionNumber: UnifiedTest.currentQuestionIndex + 1,
+        type: 'speaking',
+        picture: question.picture || '🎤',
+        chinese: question.chinese,
+        correctAnswer: question.chinese,
+        userAnswer: recognized || '(no speech)',
+        isCorrect: isCorrect
+    });
+
+    // Update score
+    if (isCorrect) {
+        UnifiedTest.score++;
+        document.getElementById(`${testId}Score`).textContent = UnifiedTest.score;
+        if (typeof showCelebration === 'function') showCelebration('🎉');
+    } else {
+        if (typeof showCelebration === 'function') showCelebration('💪');
+    }
+
+    // Update progress
+    const progress = ((UnifiedTest.currentQuestionIndex + 1) / UnifiedTest.questions.length) * 100;
+    document.getElementById(`${testId}Progress`).style.width = progress + '%';
+
+    // Show inline result
+    const resultDiv = document.getElementById(`${testId}SpeakingResult`);
+    if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div style="font-size: 2rem; margin-bottom: 8px;">${isCorrect ? '✅' : '❌'}</div>
+            <div style="color: ${isCorrect ? '#48bb78' : '#f56565'}; font-weight: 700; margin-bottom: 8px;">
+                ${isCorrect ? 'Correct! 正確！' : 'Not quite 再試！'}
+            </div>
+            <div style="background: var(--bg); border-radius: 12px; padding: 12px; margin-bottom: 8px;">
+                <div style="margin-bottom: 6px;">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">You said:</span>
+                    <span style="font-size: 1.1rem; font-weight: 600; color: var(--text); margin-left: 6px;">${recognized || '(nothing detected)'}</span>
+                </div>
+                <div>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">Expected:</span>
+                    <span style="font-size: 1.1rem; font-weight: 600; color: var(--text); margin-left: 6px;">${question.chinese}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Hide mic button
+    const micBtn = document.getElementById(`${testId}MicBtn`);
+    if (micBtn) micBtn.style.display = 'none';
+    const micHint = document.getElementById(`${testId}MicHint`);
+    if (micHint) micHint.style.display = 'none';
+
+    // Auto-advance after 2 seconds
+    setTimeout(() => {
+        UnifiedTest.currentQuestionIndex++;
+        if (UnifiedTest.currentQuestionIndex >= UnifiedTest.questions.length) {
+            endUnifiedTest(testId);
+        } else {
+            loadUnifiedQuestion(testId);
+        }
+    }, 2000);
+}
+
+/**
+ * Show speaking error toast for quiz
+ */
+function showQuizSpeakingError(testId, message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #f56565; color: white; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; z-index: 3000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ==================== QUIZ AUDIO VISUALIZER ====================
+
+/**
+ * Start audio visualizer for quiz speaking question (prefixed element IDs)
+ */
+function startQuizAudioVisualizer(testId) {
+    const vizContainer = document.getElementById(`${testId}VizContainer`);
+    const barsContainer = document.getElementById(`${testId}WaveformBars`);
+    if (!vizContainer || !barsContainer) return;
+
+    vizContainer.style.display = 'block';
+
+    const BAR_COUNT = 20;
+    barsContainer.innerHTML = '';
+    for (let i = 0; i < BAR_COUNT; i++) {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'width: 8px; min-height: 4px; height: 4px; background: linear-gradient(180deg, #f56565, #e53e3e); border-radius: 4px; transition: height 0.05s ease;';
+        barsContainer.appendChild(bar);
+    }
+
+    // Audio analyser
+    try {
+        if (!UnifiedTest._quizAudioCtx) {
+            UnifiedTest._quizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (UnifiedTest._quizAudioCtx.state === 'suspended') {
+            UnifiedTest._quizAudioCtx.resume();
+        }
+
+        const connectAnalyser = function(stream) {
+            const analyser = UnifiedTest._quizAudioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.6;
+            const source = UnifiedTest._quizAudioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            UnifiedTest._quizAnalyser = analyser;
+            UnifiedTest._quizVizSource = source;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const bars = barsContainer.children;
+            function draw() {
+                if (!UnifiedTest._quizRecording) return;
+                UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                const step = Math.floor(dataArray.length / BAR_COUNT) || 1;
+                for (let i = 0; i < BAR_COUNT && i < bars.length; i++) {
+                    const val = dataArray[i * step] || 0;
+                    bars[i].style.height = Math.max(4, (val / 255) * 48) + 'px';
+                }
+            }
+            UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
+        };
+
+        if (typeof SpeakingPractice !== 'undefined' && SpeakingPractice.mediaStream && SpeakingPractice.mediaStream.active) {
+            connectAnalyser(SpeakingPractice.mediaStream);
+        } else {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                if (typeof SpeakingPractice !== 'undefined') {
+                    SpeakingPractice.mediaStream = stream;
+                    SpeakingPractice.micPermissionGranted = true;
+                }
+                connectAnalyser(stream);
+            }).catch(function() {
+                // Fallback animation
+                const bars = barsContainer.children;
+                function draw() {
+                    if (!UnifiedTest._quizRecording) return;
+                    UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
+                    for (let i = 0; i < BAR_COUNT && i < bars.length; i++) {
+                        const centerWeight = 1 - Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+                        bars[i].style.height = Math.max(4, (Math.random() * 30 + 10) * (0.5 + centerWeight * 0.5)) + 'px';
+                    }
+                }
+                UnifiedTest._quizVizRAF = requestAnimationFrame(draw);
+            });
+        }
+    } catch (e) {
+        // Fallback
+    }
+
+    // Countdown timer
+    UnifiedTest._quizCountdownStart = Date.now();
+    const DURATION = 8000;
+    UnifiedTest._quizCountdownInterval = setInterval(function() {
+        const elapsed = Date.now() - UnifiedTest._quizCountdownStart;
+        const remaining = Math.max(0, DURATION - elapsed);
+        const pct = (remaining / DURATION) * 100;
+
+        const bar = document.getElementById(`${testId}CountdownBar`);
+        if (bar) bar.style.width = pct + '%';
+        const text = document.getElementById(`${testId}CountdownText`);
+        if (text) text.textContent = Math.ceil(remaining / 1000) + 's';
+
+        if (remaining <= 0) {
+            clearInterval(UnifiedTest._quizCountdownInterval);
+            UnifiedTest._quizCountdownInterval = null;
+        }
+    }, 100);
+}
+
+/**
+ * Stop quiz audio visualizer
+ */
+function stopQuizAudioVisualizer(testId) {
+    if (UnifiedTest._quizVizRAF) {
+        cancelAnimationFrame(UnifiedTest._quizVizRAF);
+        UnifiedTest._quizVizRAF = null;
+    }
+    if (UnifiedTest._quizCountdownInterval) {
+        clearInterval(UnifiedTest._quizCountdownInterval);
+        UnifiedTest._quizCountdownInterval = null;
+    }
+    if (UnifiedTest._quizVizSource) {
+        try { UnifiedTest._quizVizSource.disconnect(); } catch (e) { /* ignore */ }
+        UnifiedTest._quizVizSource = null;
+    }
+    UnifiedTest._quizAnalyser = null;
+
+    const vizContainer = document.getElementById(`${testId}VizContainer`);
+    if (vizContainer) vizContainer.style.display = 'none';
 }
 
 // ==================== OPTION RENDERERS ====================
@@ -702,7 +1101,8 @@ function getQuestionTypeIcon(type) {
         select_picture: '🖼️',
         word_order: '🔀',
         match_translation: '🔄',
-        audio_identify: '🔊'
+        audio_identify: '🔊',
+        speaking: '🎤'
     };
     return icons[type] || '❓';
 }
@@ -789,6 +1189,8 @@ function initQuiz() {
     window.removeWordOrderWord = removeWordOrderWord;
     window.resetWordOrder = resetWordOrder;
     window.playQuestionAudio = playQuestionAudio;
+    window.startQuizSpeakingRecognition = startQuizSpeakingRecognition;
+    window.stopQuizRecording = stopQuizRecording;
 }
 
 if (document.readyState === 'loading') {

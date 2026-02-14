@@ -86,6 +86,7 @@ const QuestionGenerator = (function() {
     function getDistractors(targetItem, allItems, field, count = 3) {
         const distractors = [];
         const targetValue = targetItem[field];
+        const targetLen = (targetValue || '').length;
 
         // Filter out the target and items with same value
         const candidates = allItems.filter(item =>
@@ -93,25 +94,30 @@ const QuestionGenerator = (function() {
             item.chinese !== targetItem.chinese
         );
 
-        // Shuffle and take required count
-        const shuffled = shuffleArray(candidates);
+        // Prefer candidates with the same character length as the answer
+        const sameLen = shuffleArray(candidates.filter(item => (item[field] || '').length === targetLen));
+        const diffLen = shuffleArray(candidates.filter(item => (item[field] || '').length !== targetLen));
 
-        for (let i = 0; i < Math.min(count, shuffled.length); i++) {
-            distractors.push(shuffled[i][field]);
+        // Take same-length first, then fall back to different-length
+        const ordered = [...sameLen, ...diffLen];
+
+        for (let i = 0; i < Math.min(count, ordered.length); i++) {
+            distractors.push(ordered[i][field]);
         }
 
-        // If not enough distractors, pad with generic options
+        // If not enough distractors, pad with generic options matching target length
         while (distractors.length < count) {
             const genericOptions = {
-                chinese: ['係', '唔係', '有', '冇'],
+                chinese: ['係', '唔係', '有', '冇', '好嘅', '可以', '得'],
                 english: ['Yes', 'No', 'Maybe', 'Unknown'],
                 jyutping: ['hai6', 'm4 hai6', 'jau5', 'mou5'],
                 icon: ['❓', '❔', '🔶', '🔷']
             };
             const options = genericOptions[field] || ['?'];
-            const unused = options.filter(opt =>
-                opt !== targetValue && !distractors.includes(opt)
-            );
+            // Prefer same-length generics too
+            const unused = options
+                .filter(opt => opt !== targetValue && !distractors.includes(opt))
+                .sort((a, b) => Math.abs(a.length - targetLen) - Math.abs(b.length - targetLen));
             if (unused.length > 0) {
                 distractors.push(unused[0]);
             } else {
@@ -361,9 +367,9 @@ const QuestionGenerator = (function() {
                 ],
                 // Holiday categories
                 lunarnewyear: [
-                    { template: '新年我哋___。', excludeWords: ['新', '年', '我', '哋'] },
+                    { template: '新年有___。', excludeWords: ['新', '年', '有'] },
                     { template: '我收到___。', excludeWords: ['我', '收', '到'] },
-                    { template: '新年有___。', excludeWords: ['新', '年', '有'] }
+                    { template: '新年我見到___。', excludeWords: ['新', '年', '我', '見', '到'] }
                 ],
                 easter: [
                     { template: '復活節有___。', excludeWords: ['復', '活', '節', '有'] },
@@ -611,6 +617,29 @@ const QuestionGenerator = (function() {
         };
     }
 
+    /**
+     * Generate speaking question
+     * @param {Object} item - Vocabulary item
+     * @param {Array} allItems - All vocabulary items (unused)
+     * @returns {Object} Question object
+     */
+    function generateSpeaking(item, allItems) {
+        // Fall back to audio_identify if speech recognition is unavailable
+        if (typeof isSpeechRecognitionAvailable === 'function' && !isSpeechRecognitionAvailable()) {
+            return generateAudioIdentify(item, allItems);
+        }
+
+        return {
+            type: 'speaking',
+            chinese: item.chinese,
+            jyutping: item.jyutping,
+            english: item.english,
+            picture: item.icon || '🎤',
+            answer: item.chinese,
+            speakingItem: item
+        };
+    }
+
     // ==================== MAIN GENERATOR ====================
 
     /**
@@ -776,6 +805,9 @@ const QuestionGenerator = (function() {
                     case 'audio_identify':
                         question = generateAudioIdentify(item, vocabulary);
                         break;
+                    case 'speaking':
+                        question = generateSpeaking(item, vocabulary);
+                        break;
                     default:
                         console.warn('Unknown question type:', type);
                         continue;
@@ -831,6 +863,7 @@ const QuestionGenerator = (function() {
         generateWordOrder,
         generateMatchTranslation,
         generateAudioIdentify,
+        generateSpeaking,
         generateQuestionsForSection,
         generateQuestionsForTest
     };
