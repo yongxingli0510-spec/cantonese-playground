@@ -24,7 +24,7 @@ const SpeakingPractice = {
     micPermissionGranted: false,
     touchActive: false,
     // Cantonese language fallback chain (never Mandarin)
-    cantoneseLangs: ['yue-Hant-HK', 'yue-HK', 'zh-yue'],
+    cantoneseLangs: ['zh-HK', 'yue-Hant-HK', 'yue-HK', 'zh-yue'],
     currentLangIndex: 0,
     // Audio visualizer state
     audioContext: null,
@@ -36,54 +36,17 @@ const SpeakingPractice = {
 
 // ==================== SPEECH RECOGNITION ====================
 
-// ==================== DEBUG LOGGING ====================
-
-SpeakingPractice._debugLog = [];
-
+/** Console-only speech debug log */
 function speakingDebug(msg) {
-    const ts = new Date().toLocaleTimeString();
-    const entry = '[' + ts + '] ' + msg;
-    SpeakingPractice._debugLog.push(entry);
     console.log('[SpeechDebug]', msg);
-    // Keep last 30 entries
-    if (SpeakingPractice._debugLog.length > 30) {
-        SpeakingPractice._debugLog.shift();
-    }
 }
 
-/**
- * Show error with debug log panel in the speaking modal
- */
+/** Show speech error (delegates to showSpeakingError) */
 function showSpeakingErrorDebug(message) {
-    // Re-render prompt so user can try again
-    renderSpeakingPrompt();
-
-    // Add debug panel to the speaking content
-    const container = document.getElementById('speakingContent');
-    if (container) {
-        const logHtml = SpeakingPractice._debugLog.map(function(l) { return '<div>' + l + '</div>'; }).join('');
-        const debugDiv = document.createElement('div');
-        debugDiv.innerHTML = `
-            <div style="margin: 10px auto; max-width: 400px; text-align: center;">
-                <div style="color: #f56565; font-weight: 700; margin-bottom: 8px;">${message}</div>
-                <div style="background: #1a202c; color: #68d391; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.65rem; text-align: left; max-height: 180px; overflow-y: auto; word-break: break-all;">
-                    <div style="color: #fbd38d; margin-bottom: 4px; font-weight: 700;">Debug Log:</div>
-                    ${logHtml}
-                </div>
-            </div>
-        `;
-        container.appendChild(debugDiv);
-    }
-
-    // Also show toast
-    const toast = document.createElement('div');
-    toast.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #f56565; color: white; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; z-index: 3000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 3000);
+    showSpeakingError(message);
 }
 
-// ==================== SPEECH RECOGNITION ====================
+
 
 /**
  * Create a fresh SpeechRecognition instance for each recording session
@@ -103,10 +66,11 @@ function createSpeechRecognition() {
     const recognition = new SpeechRecognition();
     recognition.lang = langCode;
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 5;
 
     SpeakingPractice._gotResult = false;
+    SpeakingPractice._bestInterim = '';
 
     recognition.onaudiostart = function() { speakingDebug('audiostart (mic capturing)'); };
     recognition.onsoundstart = function() { speakingDebug('soundstart (sound detected)'); };
@@ -116,14 +80,23 @@ function createSpeechRecognition() {
     recognition.onaudioend = function() { speakingDebug('audioend'); };
 
     recognition.onresult = function(event) {
-        SpeakingPractice._gotResult = true;
-        const results = event.results[0];
-        let recognized = results[0].transcript.trim();
+        const result = event.results[event.results.length - 1];
+        const isFinal = result.isFinal;
+        let recognized = result[0].transcript.trim();
 
-        speakingDebug('result: "' + recognized + '" conf=' + results[0].confidence.toFixed(2));
-        for (let i = 1; i < results.length; i++) {
-            speakingDebug('  alt[' + i + ']: "' + results[i].transcript.trim() + '"');
+        speakingDebug((isFinal ? 'FINAL' : 'interim') + ': "' + recognized + '" conf=' + result[0].confidence.toFixed(2));
+        for (let i = 1; i < result.length; i++) {
+            speakingDebug('  alt[' + i + ']: "' + result[i].transcript.trim() + '"');
         }
+
+        // Save best interim result in case final never comes
+        if (!isFinal) {
+            SpeakingPractice._bestInterim = recognized;
+            return;
+        }
+
+        // Final result
+        SpeakingPractice._gotResult = true;
 
         // Get expected item data
         const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
@@ -131,8 +104,8 @@ function createSpeechRecognition() {
         let bestMatch = recognized;
 
         // Check all alternatives for a match against chinese text, jyutping, or english
-        for (let i = 0; i < results.length; i++) {
-            const alt = results[i].transcript.trim();
+        for (let i = 0; i < result.length; i++) {
+            const alt = result[i].transcript.trim();
             if (matchesSpeakingItem(alt, item)) {
                 bestMatch = alt;
                 speakingDebug('matched alt[' + i + ']: "' + alt + '"');
@@ -169,10 +142,21 @@ function createSpeechRecognition() {
     };
 
     recognition.onend = function() {
-        speakingDebug('end (gotResult=' + SpeakingPractice._gotResult + ' recording=' + SpeakingPractice.isRecording + ')');
+        speakingDebug('end (gotResult=' + SpeakingPractice._gotResult + ' recording=' + SpeakingPractice.isRecording + ' interim="' + (SpeakingPractice._bestInterim || '') + '")');
 
         if (SpeakingPractice.isRecording && !SpeakingPractice._gotResult) {
             stopRecordingInternal();
+
+            // If we got an interim result but no final, use the interim
+            if (SpeakingPractice._bestInterim) {
+                const interim = SpeakingPractice._bestInterim;
+                SpeakingPractice._bestInterim = '';
+                speakingDebug('Using interim result: "' + interim + '"');
+                const item = SpeakingPractice.currentItems[SpeakingPractice.currentIndex];
+                const expected = item?.chinese || '';
+                showSpeakingResult(interim, expected);
+                return;
+            }
 
             // On no result, try next Cantonese language code
             if (SpeakingPractice.currentLangIndex < SpeakingPractice.cantoneseLangs.length - 1) {
@@ -535,12 +519,8 @@ function startRecording() {
     SpeakingPractice.isRecording = true;
     SpeakingPractice.audioChunks = [];
     SpeakingPractice._gotResult = false;
-    SpeakingPractice._debugLog = [];
 
-    speakingDebug('startRecording called');
-    speakingDebug('Browser: ' + navigator.userAgent.slice(0, 80));
-    speakingDebug('Protocol: ' + location.protocol);
-    speakingDebug('lang: yue-Hant-HK (Cantonese only)');
+    speakingDebug('startRecording, lang=' + (SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex] || '?'));
 
     // Visual feedback
     const micBtn = document.getElementById('micBtn');
@@ -555,8 +535,13 @@ function startRecording() {
     // Start animated visualizer (no getUserMedia — avoids mic conflict with SpeechRecognition)
     startAnimatedVisualizer();
 
-    // Create a fresh instance if needed (e.g., after language fallback)
+    // Always create a fresh recognition instance to use the current language
+    if (SpeakingPractice.recognition) {
+        try { SpeakingPractice.recognition.abort(); } catch (e) { /* ignore */ }
+    }
+    SpeakingPractice.recognition = createSpeechRecognition();
     if (!SpeakingPractice.recognition) {
+        // Fallback: try once more
         SpeakingPractice.recognition = createSpeechRecognition();
     }
     if (SpeakingPractice.recognition) {
@@ -1124,6 +1109,51 @@ function jyutpingSimilarity(a, b) {
     return matches / maxLen;
 }
 
+// ==================== NUMBER CONVERSION ====================
+
+/**
+ * Convert Chinese number text or Arabic numeral string to a numeric value.
+ * Returns null if the input is not a recognizable number.
+ * Handles: 一百, 二十五, 三千, 10, 100, etc.
+ */
+function normalizeToArabic(text) {
+    // If it's already a plain Arabic number
+    if (/^\d+$/.test(text)) return parseInt(text, 10);
+
+    const digitMap = {'零':0,'〇':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+    const unitMap = {'十':10,'百':100,'千':1000,'萬':10000,'万':10000,'億':100000000,'亿':100000000};
+
+    // Check if text contains any Chinese number characters
+    const allChars = Object.keys(digitMap).concat(Object.keys(unitMap));
+    if (!allChars.some(c => text.includes(c))) return null;
+
+    let result = 0;
+    let current = 0;
+
+    for (const char of text) {
+        if (digitMap[char] !== undefined) {
+            current = digitMap[char];
+        } else if (unitMap[char] !== undefined) {
+            const unit = unitMap[char];
+            if (current === 0 && unit === 10) {
+                // Handle 十 alone (meaning 10) or at start like 十五
+                current = 1;
+            }
+            if (unit >= 10000) {
+                // 萬/億 multiplies everything accumulated so far
+                result = (result + current * unit);
+                current = 0;
+            } else {
+                result += current * unit;
+                current = 0;
+            }
+        }
+    }
+    result += current;
+
+    return result > 0 ? result : null;
+}
+
 // ==================== SPEECH MATCHING ====================
 
 /**
@@ -1149,6 +1179,13 @@ function matchesSpeakingItem(recognized, item) {
     // Chinese contains/included
     if (r && chinese && (r.includes(chinese) || chinese.includes(r))) return true;
 
+    // Number matching: Arabic numerals ↔ Chinese numbers
+    if (r && chinese) {
+        const rArabic = normalizeToArabic(r);
+        const cArabic = normalizeToArabic(chinese);
+        if (rArabic !== null && cArabic !== null && rArabic === cArabic) return true;
+    }
+
     // Match against jyutping (with tones)
     if (rLower === jyutping) return true;
     // Match against jyutping (without tones)
@@ -1170,7 +1207,7 @@ function matchesSpeakingItem(recognized, item) {
         const recognizedJyutping = textToJyutping(recognized);
         const expectedJyutping = jyutpingNoTones.split(/\s+/);
         const similarity = jyutpingSimilarity(recognizedJyutping, expectedJyutping);
-        if (similarity >= 0.8) return true;
+        if (similarity >= 0.7) return true;
     }
 
     // Match against English meaning (if recognition fell back to English)

@@ -458,8 +458,6 @@ function startQuizSpeakingRecognition(testId) {
 
     UnifiedTest._quizRecording = true;
     UnifiedTest._quizGotResult = false;
-    UnifiedTest._quizDebugLog = [];
-
     const micBtn = document.getElementById(`${testId}MicBtn`);
     if (micBtn) micBtn.classList.add('recording');
     const micHint = document.getElementById(`${testId}MicHint`);
@@ -468,21 +466,14 @@ function startQuizSpeakingRecognition(testId) {
     // Start visualizer with testId prefix
     startQuizAudioVisualizer(testId);
 
-    // Debug helper
     function debugLog(msg) {
-        const ts = new Date().toLocaleTimeString();
-        UnifiedTest._quizDebugLog.push('[' + ts + '] ' + msg);
         console.log('[SpeechDebug]', msg);
     }
 
     // Create speech recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        showQuizSpeakingDebug(testId, 'API not available', [
-            'SpeechRecognition: NOT FOUND',
-            'webkitSpeechRecognition: NOT FOUND',
-            'Browser: ' + navigator.userAgent
-        ]);
+        showQuizSpeakingDebug(testId, 'Speech recognition not available in this browser.');
         return;
     }
 
@@ -560,17 +551,17 @@ function startQuizSpeakingRecognition(testId) {
             SpeakingPractice.currentLangIndex++;
             var nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
             debugLog('Network error → trying ' + nextLang);
-            showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.', UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.');
         } else if (event.error === 'no-speech') {
-            showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'No speech detected');
         } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showQuizSpeakingDebug(testId, 'Mic access denied', UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'Mic access denied');
         } else if (event.error === 'network') {
-            showQuizSpeakingDebug(testId, 'Network error. All Cantonese codes failed.', UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'Network error. All Cantonese codes failed.');
         } else if (event.error === 'aborted') {
             debugLog('Aborted (user-initiated)');
         } else {
-            showQuizSpeakingDebug(testId, 'Error: ' + event.error, UnifiedTest._quizDebugLog);
+            showQuizSpeakingDebug(testId, 'Error: ' + event.error);
         }
     };
 
@@ -584,9 +575,9 @@ function startQuizSpeakingRecognition(testId) {
                 SpeakingPractice.currentLangIndex++;
                 var nextLang = SpeakingPractice.cantoneseLangs[SpeakingPractice.currentLangIndex];
                 debugLog('No result → trying ' + nextLang);
-                showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.', UnifiedTest._quizDebugLog);
+                showQuizSpeakingDebug(testId, 'Trying ' + nextLang + '... Tap mic again.');
             } else {
-                showQuizSpeakingDebug(testId, 'No speech detected', UnifiedTest._quizDebugLog);
+                showQuizSpeakingDebug(testId, 'No speech detected');
             }
         }
     };
@@ -597,7 +588,7 @@ function startQuizSpeakingRecognition(testId) {
     } catch (e) {
         debugLog('recognition.start() THREW: ' + e.message);
         stopQuizRecordingInternal(testId);
-        showQuizSpeakingDebug(testId, 'Start failed: ' + e.message, UnifiedTest._quizDebugLog);
+        showQuizSpeakingDebug(testId, 'Start failed: ' + e.message);
     }
 
     // Auto-stop after 8 seconds
@@ -764,35 +755,20 @@ function skipSpeakingQuestion(testId) {
 }
 
 /**
- * Show speaking error with debug log on screen
+ * Show speaking error message
  */
-function showQuizSpeakingDebug(testId, message, debugLog) {
+function showQuizSpeakingDebug(testId, message) {
     const resultDiv = document.getElementById(`${testId}SpeakingResult`);
     if (resultDiv) {
         resultDiv.style.display = 'block';
-        const logHtml = (debugLog || []).map(l => '<div>' + l + '</div>').join('');
-        resultDiv.innerHTML = `
-            <div style="color: #f56565; font-weight: 700; margin-bottom: 8px;">${message}</div>
-            <div style="background: #1a202c; color: #68d391; border-radius: 8px; padding: 10px; margin-top: 8px; font-family: monospace; font-size: 0.7rem; text-align: left; max-height: 200px; overflow-y: auto; word-break: break-all;">
-                <div style="color: #fbd38d; margin-bottom: 4px; font-weight: 700;">Debug Log:</div>
-                ${logHtml}
-            </div>
-        `;
+        resultDiv.innerHTML = `<div style="color: #f56565; font-weight: 700;">${message}</div>`;
     }
 
-    // Also show toast
     const toast = document.createElement('div');
     toast.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #f56565; color: white; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; z-index: 3000; box-shadow: 0 4px 15px rgba(0,0,0,0.2);';
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
-}
-
-/**
- * Show speaking error toast (simple, no debug)
- */
-function showQuizSpeakingError(testId, message) {
-    showQuizSpeakingDebug(testId, message, UnifiedTest._quizDebugLog || []);
 }
 
 // ==================== QUIZ AUDIO VISUALIZER ====================
