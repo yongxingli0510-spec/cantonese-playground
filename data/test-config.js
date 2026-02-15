@@ -1,7 +1,7 @@
 /**
  * ==================== TEST CONFIGURATION ====================
  * Test structure configuration for Cantonese Playground
- * 5 Tests with 30 total sections, 600 questions
+ * 5 Tests with 32 total sections
  * Categories combined to ensure 20+ vocabulary items per section
  * ================================================================
  */
@@ -85,10 +85,25 @@ const testConfig = {
             },
             {
                 id: '1.10',
-                name: 'Daily Life',
-                chineseName: '日常生活',
+                name: 'Transport & Emotions',
+                chineseName: '交通與情緒',
+                icon: '🚌',
+                categories: ['transport', 'emotions']
+            },
+            {
+                id: '1.11',
+                name: 'Nature & Shapes',
+                chineseName: '自然與形狀',
+                icon: '🌿',
+                categories: ['nature', 'shapes']
+            },
+            {
+                id: '1.12',
+                name: 'Daily Life Review',
+                chineseName: '日常生活複習',
                 icon: '🌅',
-                categories: ['dailyactivities', 'family', 'transport', 'emotions', 'nature']
+                categories: ['dailyactivities', 'family', 'transport', 'emotions', 'nature', 'shapes'],
+                isMixedReview: true
             }
         ],
         questionDistribution: {

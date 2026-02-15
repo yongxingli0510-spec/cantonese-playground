@@ -323,6 +323,21 @@ const vocabularyData = {
         { chinese: "森林", jyutping: "sam1 lam4", english: "Forest", icon: "🌲" }
     ],
 
+    shapes: [
+        { chinese: "圓形", jyutping: "jyun4 jing4", english: "Circle", icon: "🔵" },
+        { chinese: "正方形", jyutping: "zing3 fong1 jing4", english: "Square", icon: "🟧" },
+        { chinese: "三角形", jyutping: "saam1 gok3 jing4", english: "Triangle", icon: "🔺" },
+        { chinese: "長方形", jyutping: "coeng4 fong1 jing4", english: "Rectangle", icon: "▬" },
+        { chinese: "心形", jyutping: "sam1 jing4", english: "Heart shape", icon: "💜" },
+        { chinese: "星形", jyutping: "sing1 jing4", english: "Star shape", icon: "⭐" },
+        { chinese: "菱形", jyutping: "ling4 jing4", english: "Diamond", icon: "🔷" },
+        { chinese: "橢圓形", jyutping: "to5 jyun4 jing4", english: "Oval", icon: "🥚" },
+        { chinese: "半圓形", jyutping: "bun3 jyun4 jing4", english: "Semicircle", icon: "🌗" },
+        { chinese: "十字形", jyutping: "sap6 zi6 jing4", english: "Cross shape", icon: "✚" },
+        { chinese: "箭嘴", jyutping: "zin3 zeoi2", english: "Arrow", icon: "➡️" },
+        { chinese: "五角星", jyutping: "ng5 gok3 sing1", english: "Pentagon star", icon: "🌟" }
+    ],
+
     // ==================== HOLIDAYS ====================
 
     lunarnewyear: [
@@ -618,6 +633,7 @@ const categoryDisplayNames = {
     transport: 'Transport 交通',
     emotions: 'Emotions 情緒',
     nature: 'Nature 自然',
+    shapes: 'Shapes 形狀',
     lunarnewyear: 'Lunar New Year 農曆新年',
     easter: 'Easter 復活節',
     dragonboat: 'Dragon Boat 端午節',
