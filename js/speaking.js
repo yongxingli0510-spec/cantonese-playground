@@ -1109,6 +1109,24 @@ function getCharJyutpingMap() {
         '也': 'jaa', '夜': 'je', '爷': 'je',
         '些': 'se', '写': 'se',
         '像': 'zoeng', '象': 'zoeng',
+        // Common homophones that speech recognition returns for vocabulary words
+        '祝': 'zuk', '竹': 'zuk', '築': 'zuk', '逐': 'zuk',   // 粥 zuk1
+        '段': 'dyun', '斷': 'dyun', '短': 'dyun',               // 短 dyun2
+        '快': 'faai', '塊': 'faai', '筷': 'faai',               // 快 faai3
+        '跪': 'gwai', '貴': 'gwai', '鬼': 'gwai',               // 龜 gwai1
+        '舍': 'se', '蛇': 'se', '射': 'se',                     // 蛇 se4
+        '留': 'lau', '流': 'lau', '劉': 'lau', '樓': 'lau',    // 馬騮 lau4
+        '暖': 'nyun', '軟': 'jyun',                              // 暖 nyun5
+        '涼': 'loeng', '量': 'loeng', '兩': 'loeng',            // 涼 loeng4
+        '霧': 'mou', '無': 'mou', '武': 'mou', '舞': 'mou',    // 霧 mou6
+        '放': 'fong', '房': 'fong',                              // 放鬆 fong3
+        '松': 'sung', '送': 'sung',                              // 鬆 sung1
+        '愁': 'sau', '收': 'sau', '手': 'sau',                  // 醜 cau2
+        '平': 'peng', '瓶': 'peng',                              // 平 peng4
+        '坏': 'waai', '壞': 'waai',                              // 壞 waai6
+        '旧': 'gau', '舊': 'gau', '救': 'gau',                 // 舊 gau6
+        '卖': 'maai', '埋': 'maai',                              // 賣 maai6
+        '拎': 'ling', '零': 'ling', '灵': 'ling', '铃': 'ling', // 零 ling4
     };
 
     for (const [char, jyut] of Object.entries(extras)) {
