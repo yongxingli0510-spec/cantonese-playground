@@ -236,7 +236,7 @@ const QuestionGenerator = (function() {
                 ],
                 animals: [
                     // "I have a ___" - only pets/small animals a kid could have
-                    { template: '我有一隻___。', excludeWords: ['一', '隻', '有', '蛇', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星', '蟹', '蝦', '大象', '獅子', '老虎', '熊', '猴子', '企鵝', '長頸鹿', '斑馬', '豬', '牛', '羊', '馬'] },
+                    { template: '我有一隻___。', excludeWords: ['一', '隻', '有', '蛇', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星', '蟹', '蝦', '大象', '獅子', '老虎', '熊', '馬騮', '企鵝', '長頸鹿', '斑馬', '豬', '牛', '羊', '馬'] },
                     // "This is a ___" - 隻 classifier, exclude animals that use 條
                     { template: '呢隻係___。', excludeWords: ['呢', '隻', '係', '蛇', '魚', '龍', '鯊魚', '鯨魚', '海豚', '海星'] },
                     { template: '我鍾意___。', excludeWords: ['鍾', '意'] },
@@ -365,6 +365,11 @@ const QuestionGenerator = (function() {
                     // For contrast (但係)
                     { template: '我想去，___我冇時間。', excludeWords: ['我', '想', '去', '冇', '時', '間', '因為', '所以', '如果', '然後', '同埋', '或者', '仲有'] }
                 ],
+                shapes: [
+                    { template: '呢個係___。', excludeWords: ['呢', '個', '係'] },
+                    { template: '我畫咗一個___。', excludeWords: ['我', '畫', '咗', '一', '個'] },
+                    { template: '呢個形狀係___。', excludeWords: ['呢', '個', '形', '狀', '係'] }
+                ],
                 // Holiday categories
                 lunarnewyear: [
                     { template: '新年有___。', excludeWords: ['新', '年', '有'] },
@@ -491,7 +496,11 @@ const QuestionGenerator = (function() {
             blankPosition = 'start';
         }
 
-        const distractors = getDistractors(item, allItems, 'chinese', 3);
+        // Prefer same-category distractors so options make sense in the sentence context
+        // e.g., Halloween question should have Halloween-related wrong answers, not "spring"
+        const sameCategoryItems = allItems.filter(i => i.category === category);
+        const distractorPool = sameCategoryItems.length >= 4 ? sameCategoryItems : allItems;
+        const distractors = getDistractors(item, distractorPool, 'chinese', 3);
 
         // Use the whole word as the answer (not sliced) to keep jyutping consistent
         // Don't show picture for fill-in questions to avoid giving away the answer
@@ -531,7 +540,11 @@ const QuestionGenerator = (function() {
      * @returns {Object} Question object
      */
     function generateSelectPicture(item, allItems) {
-        const distractors = getDistractors(item, allItems, 'icon', 3);
+        // Prefer same-category distractors for more meaningful choices
+        const category = item.category || '';
+        const sameCategoryItems = allItems.filter(i => i.category === category);
+        const distractorPool = sameCategoryItems.length >= 4 ? sameCategoryItems : allItems;
+        const distractors = getDistractors(item, distractorPool, 'icon', 3);
 
         return {
             type: 'select_picture',
@@ -585,7 +598,11 @@ const QuestionGenerator = (function() {
      * @returns {Object} Question object
      */
     function generateMatchTranslation(item, allItems) {
-        const distractors = getDistractors(item, allItems, 'english', 3);
+        // Prefer same-category distractors for more meaningful choices
+        const category = item.category || '';
+        const sameCategoryItems = allItems.filter(i => i.category === category);
+        const distractorPool = sameCategoryItems.length >= 4 ? sameCategoryItems : allItems;
+        const distractors = getDistractors(item, distractorPool, 'english', 3);
 
         // Use generic icon to avoid giving away the answer (e.g., 9️⃣ for "Nine")
         return {

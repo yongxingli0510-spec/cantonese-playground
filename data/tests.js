@@ -47,7 +47,7 @@ const testSections = [
         { picture: "🐢", jyutping: "___ haang4 dak1 hou2 maan6", chinese: "___行得好慢。", answer: "龜", options: ["龜", "蛇", "魚", "兔仔"] },
         { picture: "🐧", jyutping: "___ zyu6 hai2 naam4 gik6", chinese: "___住喺南極。", answer: "企鵝", options: ["企鵝", "北極熊", "海豹", "海象"] },
         { picture: "🦒", jyutping: "___ jau5 hou2 coeng4 ge3 geng2", chinese: "___有好長嘅頸。", answer: "長頸鹿", options: ["長頸鹿", "大象", "斑馬", "獅子"] },
-        { picture: "🐵", jyutping: "___ zung1 ji3 sik6 heong1 ziu1", chinese: "___鍾意食香蕉。", answer: "猴子", options: ["猴子", "熊", "兔仔", "貓"] }
+        { picture: "🐵", jyutping: "___ zung1 ji3 sik6 heong1 ziu1", chinese: "___鍾意食香蕉。", answer: "馬騮", options: ["馬騮", "熊", "兔仔", "貓"] }
     ],
 
     // SECTION 4: Foods & Drinks (10 questions)

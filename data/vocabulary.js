@@ -54,7 +54,7 @@ const vocabularyData = {
         { chinese: "獅子", jyutping: "si1 zi2", english: "Lion", icon: "🦁" },
         { chinese: "老虎", jyutping: "lou5 fu2", english: "Tiger", icon: "🐯" },
         { chinese: "熊", jyutping: "hung4", english: "Bear", icon: "🐻" },
-        { chinese: "猴子", jyutping: "hau4 zi2", english: "Monkey", icon: "🐵" },
+        { chinese: "馬騮", jyutping: "maa5 lau4", english: "Monkey", icon: "🐵" },
         { chinese: "企鵝", jyutping: "kei5 ngo4", english: "Penguin", icon: "🐧" },
         { chinese: "長頸鹿", jyutping: "coeng4 geng2 luk6", english: "Giraffe", icon: "🦒" },
         { chinese: "斑馬", jyutping: "baan1 maa5", english: "Zebra", icon: "🦓" },

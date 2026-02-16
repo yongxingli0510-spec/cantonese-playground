@@ -352,6 +352,14 @@ function renderSpeakingPrompt() {
                 </button>
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 8px;" id="micHint">Tap to speak</p>
             </div>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 18px;">
+                <button class="next-btn" onclick="prevSpeakingPrompt()" style="padding: 10px 24px; font-size: 1rem; ${SpeakingPractice.currentIndex === 0 ? 'background: #ccc; cursor: not-allowed; opacity: 0.5;' : 'background: linear-gradient(135deg, #a0aec0, #718096);'}" ${SpeakingPractice.currentIndex === 0 ? 'disabled' : ''}>
+                    ⬅️ Prev
+                </button>
+                <button class="next-btn" onclick="skipSpeakingPrompt()" style="padding: 10px 24px; font-size: 1rem; background: linear-gradient(135deg, #a0aec0, #718096);">
+                    Next ➡️
+                </button>
+            </div>
         </div>
     `;
 
@@ -684,6 +692,45 @@ function retrySpeakingPrompt() {
         SpeakingPractice.recordedUrl = null;
     }
     renderSpeakingPrompt();
+}
+
+/**
+ * Go to previous speaking prompt
+ */
+function prevSpeakingPrompt() {
+    if (SpeakingPractice.currentIndex > 0) {
+        stopRecordingIfActive();
+        SpeakingPractice.currentIndex--;
+        SpeakingPractice.recordedBlob = null;
+        if (SpeakingPractice.recordedUrl) {
+            URL.revokeObjectURL(SpeakingPractice.recordedUrl);
+            SpeakingPractice.recordedUrl = null;
+        }
+        renderSpeakingPrompt();
+    }
+}
+
+/**
+ * Skip to next speaking prompt without recording an attempt
+ */
+function skipSpeakingPrompt() {
+    stopRecordingIfActive();
+    SpeakingPractice.currentIndex++;
+    SpeakingPractice.recordedBlob = null;
+    if (SpeakingPractice.recordedUrl) {
+        URL.revokeObjectURL(SpeakingPractice.recordedUrl);
+        SpeakingPractice.recordedUrl = null;
+    }
+    renderSpeakingPrompt();
+}
+
+/**
+ * Stop recording if currently active
+ */
+function stopRecordingIfActive() {
+    if (SpeakingPractice.isRecording) {
+        stopRecording();
+    }
 }
 
 /**
@@ -1313,6 +1360,8 @@ window.stopRecording = stopRecording;
 window.playSpeakingReference = playSpeakingReference;
 window.playRecording = playRecording;
 window.nextSpeakingPrompt = nextSpeakingPrompt;
+window.prevSpeakingPrompt = prevSpeakingPrompt;
+window.skipSpeakingPrompt = skipSpeakingPrompt;
 window.retrySpeakingPrompt = retrySpeakingPrompt;
 window.restartSpeakingPractice = restartSpeakingPractice;
 window.isSpeechRecognitionAvailable = isSpeechRecognitionAvailable;
