@@ -356,25 +356,29 @@ function startQuizFromMapping(mapping) {
     var selectEl = document.getElementById(containers.select);
     var quizEl = document.getElementById(containers.quiz);
     if (selectEl) selectEl.style.display = 'none';
-    if (quizEl) quizEl.style.display = 'block';
+    if (!quizEl) return;
+    quizEl.style.display = 'block';
+
+    // Restore quiz HTML structure — endLeveledTest() replaces it with results,
+    // so we always rebuild it fresh before starting a new section.
+    var ctxFunc = ctx.charAt(0).toUpperCase() + ctx.slice(1);
+    quizEl.innerHTML =
+        '<h2 class="game-title" id="' + prefix + 'Title"></h2>' +
+        '<div class="score">Question: <span id="' + prefix + 'Question">1</span> / <span id="' + prefix + 'Total">' + questions.length + '</span></div>' +
+        '<div class="score">Score: <span id="' + prefix + 'Score">0</span> / <span id="' + prefix + 'Total2">' + questions.length + '</span></div>' +
+        '<div class="progress-bar"><div class="progress-fill" id="' + prefix + 'Progress" style="width: 0%"></div></div>' +
+        '<div style="font-size: 5rem; text-align: center; margin: 20px 0;" id="' + prefix + 'Picture"></div>' +
+        '<div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 15px;">' +
+            '<div style="font-size: 1.5rem; color: var(--accent); font-weight: 600;" id="' + prefix + 'Jyutping"></div>' +
+            '<button class="play-btn" onclick="play' + ctxFunc + 'Question()" style="width: 50px; height: 50px; font-size: 1.2rem;">🔊</button>' +
+        '</div>' +
+        '<div class="question" id="' + prefix + 'QuestionText" style="font-size: 2.5rem;"></div>' +
+        '<div class="options" id="' + prefix + 'Options"></div>' +
+        '<button class="next-btn" id="' + prefix + 'ConfirmBtn" style="display: none;" onclick="confirm' + ctxFunc + 'Answer()">Confirm Answer ✓</button>';
 
     // Update title
-    var titleEl = document.getElementById(prefix + 'Title') || document.getElementById(prefix + 'TestTitle');
+    var titleEl = document.getElementById(prefix + 'Title');
     if (titleEl) titleEl.textContent = mapping.title;
-
-    // Update totals
-    var totalEl = document.getElementById(prefix + 'Total');
-    var total2El = document.getElementById(prefix + 'Total2');
-    if (totalEl) totalEl.textContent = questions.length;
-    if (total2El) total2El.textContent = questions.length;
-
-    // Reset score display
-    var scoreEl = document.getElementById(prefix + 'Score');
-    if (scoreEl) scoreEl.textContent = '0';
-
-    // Reset progress
-    var progressEl = document.getElementById(prefix + 'Progress');
-    if (progressEl) progressEl.style.width = '0%';
 
     loadLeveledQuestion();
 }

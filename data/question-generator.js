@@ -354,7 +354,9 @@ const QuestionGenerator = (function() {
                     { template: '你住喺___？', excludeWords: ['你', '住', '喺', '嗎', '幾時', '點解', '點樣', '幾多', '乜嘢', '邊個'] },
                     { template: '___食飯？', excludeWords: ['食', '飯', '嗎', '邊度', '點解', '點樣', '幾多', '乜嘢'] },
                     { template: '你___去學校？', excludeWords: ['你', '去', '學', '校', '嗎', '邊度', '邊個', '點樣', '幾多', '乜嘢'] },
-                    { template: '你食___？', excludeWords: ['你', '食', '嗎', '邊度', '幾時', '邊個', '點解', '點樣', '幾多'] }
+                    { template: '你食___？', excludeWords: ['你', '食', '嗎', '邊度', '幾時', '邊個', '點解', '點樣', '幾多'] },
+                    // For quantity question (幾多)
+                    { template: '你有___個蘋果？', excludeWords: ['你', '有', '個', '蘋', '果', '嗎', '邊度', '幾時', '邊個', '點解', '點樣', '乜嘢'] }
                 ],
                 linkingwords: [
                     // For cause-effect (因為, 所以)
@@ -363,7 +365,15 @@ const QuestionGenerator = (function() {
                     // For conditional (如果)
                     { template: '___落雨，我哋留喺屋企。', excludeWords: ['落', '雨', '我', '哋', '留', '喺', '屋', '企', '因為', '所以', '但係', '然後', '同埋', '或者', '仲有'] },
                     // For contrast (但係)
-                    { template: '我想去，___我冇時間。', excludeWords: ['我', '想', '去', '冇', '時', '間', '因為', '所以', '如果', '然後', '同埋', '或者', '仲有'] }
+                    { template: '我想去，___我冇時間。', excludeWords: ['我', '想', '去', '冇', '時', '間', '因為', '所以', '如果', '然後', '同埋', '或者', '仲有'] },
+                    // For sequence (然後)
+                    { template: '我食飯，___去瞓覺。', excludeWords: ['我', '食', '飯', '去', '瞓', '覺', '因為', '所以', '如果', '但係', '同埋', '或者', '仲有'] },
+                    // For addition (同埋)
+                    { template: '我有書___筆。', excludeWords: ['我', '書', '筆', '因為', '所以', '如果', '但係', '然後', '或者', '仲有'] },
+                    // For alternative (或者)
+                    { template: '你想食飯___麵？', excludeWords: ['你', '想', '食', '飯', '麵', '因為', '所以', '如果', '但係', '然後', '同埋', '仲有'] },
+                    // For additionally (仲有)
+                    { template: '我有貓，___有狗。', excludeWords: ['我', '貓', '狗', '因為', '所以', '如果', '但係', '然後', '同埋', '或者'] }
                 ],
                 shapes: [
                     { template: '呢個係___。', excludeWords: ['呢', '個', '係'] },
