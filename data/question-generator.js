@@ -273,7 +273,6 @@ const QuestionGenerator = (function() {
                 ],
                 body: [
                     { template: '呢個係___。', excludeWords: ['呢', '個', '係'] },
-                    { template: '我用___寫字。', excludeWords: ['用', '寫', '字'] },
                     { template: '我嘅___好大。', excludeWords: ['嘅', '好', '大'] }
                 ],
                 family: [

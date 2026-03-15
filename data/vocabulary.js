@@ -159,7 +159,6 @@ const vocabularyData = {
         { chinese: "籃球", jyutping: "laam4 kau4", english: "Basketball", icon: "🏀" },
         { chinese: "排球", jyutping: "paai4 kau4", english: "Volleyball", icon: "🏐" },
         { chinese: "網球", jyutping: "mong5 kau4", english: "Tennis", icon: "🎾" },
-        { chinese: "乒乓波", jyutping: "bing1 bam1 bo1", english: "Table tennis", icon: "🏓" },
         { chinese: "羽毛球", jyutping: "jyu5 mou4 kau4", english: "Badminton", icon: "🏸" },
         { chinese: "游水", jyutping: "jau4 seoi2", english: "Swimming", icon: "🏊" },
         { chinese: "跑步", jyutping: "paau2 bou6", english: "Running", icon: "🏃" },
